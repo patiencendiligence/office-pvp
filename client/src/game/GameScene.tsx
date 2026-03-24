@@ -79,6 +79,9 @@ const CHARACTER_SHEET_ROW: Record<string, number> = {
   seagull: 5,
 };
 
+/** characters.png cells have extra transparent padding top-left; shift quad so feet sit over the turn ring. */
+const SPRITE_PLANE_OFFSET: [number, number, number] = [0.12, 0.68, 0];
+
 /** Map one 4×6 cell via geometry UV (avoids texture matrix + flipY mismatch that caused crop/wrong frame). */
 function applySpriteSheetUV(geometry: THREE.BufferGeometry, spriteRow: number, facing: CardinalFacing) {
   const dirCol = DIR_COL[facing];
@@ -759,7 +762,7 @@ function CharacterSprite({
       position={[player.position.x, player.position.y, player.position.z]}
     >
       <Billboard follow lockX={false} lockY={false} lockZ={false}>
-        <mesh ref={meshRef} position={[0, 0.8, 0]}>
+        <mesh ref={meshRef} position={SPRITE_PLANE_OFFSET}>
           <planeGeometry args={[1.6, 2.0]} />
           <meshBasicMaterial
             map={texture}
@@ -771,7 +774,7 @@ function CharacterSprite({
         </mesh>
       </Billboard>
       <Text
-        position={[0, 2.0, 0]}
+        position={[0, 1.88, 0]}
         fontSize={0.25}
         color="white"
         anchorX="center"
@@ -788,7 +791,7 @@ function CharacterSprite({
         </mesh>
       )}
       {player.isAlive && (
-        <pointLight position={[0, 1, 0]} color={color} intensity={0.5} distance={4} />
+        <pointLight position={[0, 0.88, 0]} color={color} intensity={0.5} distance={4} />
       )}
     </group>
   );
