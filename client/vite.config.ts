@@ -1,12 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-/** Render / single host: default `/`. GitHub Pages subpath: `VITE_BASE=/office-pvp/ npm run build` */
-const base = process.env.VITE_BASE ?? '/';
-
+/** Relative base so `/assets/...` works on Render root and GitHub Pages `/repo/` without wrong absolute URLs. */
 export default defineConfig({
   plugins: [react()],
-  base,
+  base: './',
   server: {
     port: 5180,
     proxy: {

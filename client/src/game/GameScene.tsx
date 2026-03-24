@@ -709,7 +709,10 @@ function CharacterSprite({
   isCurrentTurn: boolean;
   onGroupRef: (g: THREE.Group | null) => void;
 }) {
-  const baseTexture = useLoader(THREE.TextureLoader, '/characters.png');
+  const baseTexture = useLoader(
+    THREE.TextureLoader,
+    `${import.meta.env.BASE_URL}characters.png`
+  );
   const meshRef = useRef<THREE.Mesh>(null);
 
   const texture = useMemo(() => {

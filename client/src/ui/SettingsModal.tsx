@@ -15,7 +15,7 @@ function getCharSpriteStyle(spriteRow: number) {
   const pctX = SPRITE_SHEET_COLS > 1 ? (PREVIEW_DIR_COL / (SPRITE_SHEET_COLS - 1)) * 100 : 0;
   const pctY = SPRITE_SHEET_ROWS > 1 ? (spriteRow / (SPRITE_SHEET_ROWS - 1)) * 100 : 0;
   return {
-    backgroundImage: 'url(/characters.png)',
+    backgroundImage: `url(${import.meta.env.BASE_URL}characters.png)`,
     backgroundSize: `${SPRITE_SHEET_COLS * 100}% ${SPRITE_SHEET_ROWS * 100}%`,
     backgroundPosition: `${pctX}% ${pctY}%`,
     imageRendering: 'pixelated' as const,

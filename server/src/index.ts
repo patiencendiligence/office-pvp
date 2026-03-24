@@ -318,6 +318,11 @@ if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/socket.io')) return next();
+    // Avoid sending index.html for missing chunks (browser expects JS, gets HTML → MIME error).
+    if (/\.(js|mjs|css|map|png|jpe?g|webp|svg|ico|woff2?)$/i.test(req.path)) {
+      res.status(404).type('text/plain').send('Not found');
+      return;
+    }
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
