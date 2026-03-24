@@ -1,0 +1,10 @@
+# Render Blueprint: Web Service (Node) — one URL for static + Socket.IO
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: office-pvp
+    runtime: node
+    plan: free
+    buildCommand: npm run install:all && npm run build
+    startCommand: npm start
+    healthCheckPath: /

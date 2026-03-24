@@ -1,3 +1,5 @@
+import path from 'path';
+import fs from 'fs';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -309,6 +311,16 @@ io.on('connection', (socket: Socket) => {
     broadcastRoomList();
   });
 });
+
+// Production: same host serves Vite build + Socket.IO (Render / single URL).
+const clientDist = path.join(__dirname, '../../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/socket.io')) return next();
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
