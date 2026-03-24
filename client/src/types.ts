@@ -71,7 +71,6 @@ export interface CharacterInfo {
   winsRequired: number;
   hp: number;
   power: number;
-  spriteCol: number;
   spriteRow: number;
 }
 

@@ -171,17 +171,17 @@ export interface CharacterDef {
   winsRequired: number;
   hp: number;
   power: number;
-  spriteCol: number; // column in the sprite sheet (0=left, 1=right)
-  spriteRow: number; // row in the sprite sheet (0-2)
+  /** Row in characters.png: 4 cols (left, right, back, front) × 6 rows (one per character). */
+  spriteRow: number;
 }
 
 export const CHARACTERS: CharacterDef[] = [
-  { id: 'pigeon',  name: 'Pigeon Newbie',     nameKo: '비둘기 신입',   color: '#8e9aaf', winsRequired: 0,  hp: 80,  power: 1.0, spriteCol: 0, spriteRow: 0 },
-  { id: 'duck',    name: 'Duck Deputy',       nameKo: '오리 대리',     color: '#4a7c3f', winsRequired: 1,  hp: 90,  power: 1.5, spriteCol: 0, spriteRow: 1 },
-  { id: 'owl',     name: 'Owl Team Leader',   nameKo: '부엉이 팀장',   color: '#8B6914', winsRequired: 3,  hp: 100, power: 1.5, spriteCol: 0, spriteRow: 2 },
-  { id: 'chicken', name: 'Chicken Manager',   nameKo: '닭 부장',       color: '#cc3333', winsRequired: 9,  hp: 110, power: 1.2, spriteCol: 1, spriteRow: 0 },
-  { id: 'parrot',  name: 'Parrot Director',   nameKo: '앵무새 차장',   color: '#e07020', winsRequired: 18, hp: 120, power: 1.1, spriteCol: 1, spriteRow: 1 },
-  { id: 'seagull', name: 'Seagull Director',  nameKo: '갈매기 이사',   color: '#f0f0f0', winsRequired: 36, hp: 140, power: 1.3, spriteCol: 1, spriteRow: 2 },
+  { id: 'pigeon',  name: 'Pigeon Newbie',     nameKo: '비둘기 신입',   color: '#8e9aaf', winsRequired: 0,  hp: 80,  power: 1.0, spriteRow: 0 },
+  { id: 'duck',    name: 'Duck Deputy',       nameKo: '오리 대리',     color: '#4a7c3f', winsRequired: 1,  hp: 90,  power: 1.5, spriteRow: 1 },
+  { id: 'owl',     name: 'Owl Team Leader',   nameKo: '부엉이 팀장',   color: '#8B6914', winsRequired: 3,  hp: 100, power: 1.5, spriteRow: 2 },
+  { id: 'chicken', name: 'Chicken Manager',   nameKo: '닭 부장',       color: '#cc3333', winsRequired: 9,  hp: 110, power: 1.2, spriteRow: 3 },
+  { id: 'parrot',  name: 'Parrot Director',   nameKo: '앵무새 차장',   color: '#e07020', winsRequired: 18, hp: 120, power: 1.1, spriteRow: 4 },
+  { id: 'seagull', name: 'Seagull Director',  nameKo: '갈매기 이사',   color: '#f0f0f0', winsRequired: 36, hp: 140, power: 1.3, spriteRow: 5 },
 ];
 
 export function getCharacterDef(id: string): CharacterDef {

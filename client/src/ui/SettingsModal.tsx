@@ -6,12 +6,14 @@ interface Props {
   onClose: () => void;
 }
 
-const SPRITE_SHEET_COLS = 2;
-const SPRITE_SHEET_ROWS = 3;
+// Sheet: 4 directions × 6 character rows (see GameScene sprite UV).
+const SPRITE_SHEET_COLS = 4;
+const SPRITE_SHEET_ROWS = 6;
+const PREVIEW_DIR_COL = 3; // 정면 (하/S)
 
-function getCharSpriteStyle(spriteCol: number, spriteRow: number) {
-  const pctX = (spriteCol / SPRITE_SHEET_COLS) * 100;
-  const pctY = (spriteRow / SPRITE_SHEET_ROWS) * 100;
+function getCharSpriteStyle(spriteRow: number) {
+  const pctX = SPRITE_SHEET_COLS > 1 ? (PREVIEW_DIR_COL / (SPRITE_SHEET_COLS - 1)) * 100 : 0;
+  const pctY = SPRITE_SHEET_ROWS > 1 ? (spriteRow / (SPRITE_SHEET_ROWS - 1)) * 100 : 0;
   return {
     backgroundImage: 'url(/characters.png)',
     backgroundSize: `${SPRITE_SHEET_COLS * 100}% ${SPRITE_SHEET_ROWS * 100}%`,
@@ -70,7 +72,7 @@ export function SettingsModal({ onClose }: Props) {
                   <div
                     className="char-option-avatar"
                     style={{
-                      ...getCharSpriteStyle(c.spriteCol, c.spriteRow),
+                      ...getCharSpriteStyle(c.spriteRow),
                       width: 56,
                       height: 56,
                       borderRadius: 8,

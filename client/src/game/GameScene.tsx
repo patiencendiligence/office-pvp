@@ -17,6 +17,7 @@ import {
   getWorld,
   getBody,
 } from './physics';
+import { keysPressed } from './inputKeys';
 import type { ProjectileData, Vec3 } from '../types';
 
 const MAP_PLATFORMS: Record<string, Array<{ position: Vec3; size: Vec3; color: string; moving?: boolean }>> = {
@@ -56,14 +57,86 @@ const CHAR_COLORS: Record<string, string> = {
   seagull: '#f0f0f0',
 };
 
-const SPRITE_UV: Record<string, { col: number; row: number }> = {
-  pigeon:  { col: 0, row: 0 },
-  duck:    { col: 0, row: 1 },
-  owl:     { col: 0, row: 2 },
-  chicken: { col: 1, row: 0 },
-  parrot:  { col: 1, row: 1 },
-  seagull: { col: 1, row: 2 },
+/** characters.png: 4 columns = left, right, back(상), front(하); 6 rows = one per character */
+const SPRITE_SHEET_COLS = 4;
+const SPRITE_SHEET_ROWS = 6;
+
+type CardinalFacing = 'left' | 'right' | 'back' | 'front';
+
+const DIR_COL: Record<CardinalFacing, number> = {
+  left: 0,
+  right: 1,
+  back: 2,
+  front: 3,
 };
+
+const CHARACTER_SHEET_ROW: Record<string, number> = {
+  pigeon: 0,
+  duck: 1,
+  owl: 2,
+  chicken: 3,
+  parrot: 4,
+  seagull: 5,
+};
+
+function applySpriteFrameUV(tex: THREE.Texture, spriteRow: number, facing: CardinalFacing) {
+  const frameW = 1 / SPRITE_SHEET_COLS;
+  const frameH = 1 / SPRITE_SHEET_ROWS;
+  const dirCol = DIR_COL[facing];
+  tex.repeat.set(frameW * 0.23, frameH * 0.9);
+  tex.offset.set(
+    dirCol * frameW + frameW * 0.05,
+    1 - (spriteRow + 1) * frameH + frameH * 0.05
+  );
+  tex.needsUpdate = true;
+}
+
+function computeFacing(
+  playerId: string,
+  localPlayerId: string | undefined,
+  body: CANNON.Body,
+  lastPos: { x: number; z: number },
+  lastFacing: CardinalFacing
+): CardinalFacing {
+  const isLocal = localPlayerId === playerId;
+
+  if (isLocal) {
+    let fx = 0;
+    let fz = 0;
+    if (keysPressed.has('a') || keysPressed.has('arrowleft')) fx -= 1;
+    if (keysPressed.has('d') || keysPressed.has('arrowright')) fx += 1;
+    if (keysPressed.has('w') || keysPressed.has('arrowup')) fz -= 1;
+    if (keysPressed.has('s') || keysPressed.has('arrowdown')) fz += 1;
+    if (fx !== 0 || fz !== 0) {
+      if (Math.abs(fx) >= Math.abs(fz)) {
+        return fx < 0 ? 'left' : 'right';
+      }
+      return fz < 0 ? 'back' : 'front';
+    }
+  }
+
+  const vx = body.velocity.x;
+  const vz = body.velocity.z;
+  const speed = Math.sqrt(vx * vx + vz * vz);
+  if (speed > 0.2) {
+    if (Math.abs(vx) >= Math.abs(vz)) {
+      return vx < 0 ? 'left' : 'right';
+    }
+    return vz < 0 ? 'back' : 'front';
+  }
+
+  const dx = body.position.x - lastPos.x;
+  const dz = body.position.z - lastPos.z;
+  const d = Math.sqrt(dx * dx + dz * dz);
+  if (d > 0.008) {
+    if (Math.abs(dx) >= Math.abs(dz)) {
+      return dx < 0 ? 'left' : 'right';
+    }
+    return dz < 0 ? 'back' : 'front';
+  }
+
+  return lastFacing;
+}
 
 const OBJ_COLORS: Record<string, string> = {
   mug: '#8B4513',
@@ -113,7 +186,6 @@ export function GameScene() {
   const orbitRef = useRef<any>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const projIdCounter = useRef(0);
-  const keysPressed = useRef<Set<string>>(new Set());
   const positionSyncTimer = useRef(0);
 
   const mapId = currentRoom?.mapId || 'office';
@@ -123,11 +195,11 @@ export function GameScene() {
     const onKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
-        keysPressed.current.add(key);
+        keysPressed.add(key);
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current.delete(e.key.toLowerCase());
+      keysPressed.delete(e.key.toLowerCase());
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -140,9 +212,9 @@ export function GameScene() {
   // Expose mobile dpad control
   const applyMobileMove = useCallback((dir: string, pressed: boolean) => {
     if (pressed) {
-      keysPressed.current.add(dir);
+      keysPressed.add(dir);
     } else {
-      keysPressed.current.delete(dir);
+      keysPressed.delete(dir);
     }
   }, []);
 
@@ -345,7 +417,7 @@ export function GameScene() {
         const body = getBody(bodyId);
         if (body) {
           const MOVE_FORCE = 40;
-          const keys = keysPressed.current;
+          const keys = keysPressed;
           let fx = 0, fz = 0;
           if (keys.has('a') || keys.has('arrowleft')) fx -= MOVE_FORCE;
           if (keys.has('d') || keys.has('arrowright')) fx += MOVE_FORCE;
@@ -621,33 +693,6 @@ export function GameScene() {
   );
 }
 
-const SPRITE_COLS = 2;
-const SPRITE_ROWS = 3;
-
-function useCharTexture(characterId: string): THREE.Texture {
-  const baseTexture = useLoader(THREE.TextureLoader, '/characters.png');
-
-  return useMemo(() => {
-    const tex = baseTexture.clone();
-    tex.needsUpdate = true;
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-
-    const uv = SPRITE_UV[characterId] || { col: 0, row: 0 };
-
-    const frameW = 1 / SPRITE_COLS;
-    const frameH = 1 / SPRITE_ROWS;
-
-    tex.repeat.set(frameW * 0.23, frameH * 0.9);
-    tex.offset.set(
-      uv.col * frameW + frameW * 0.05,
-      1 - (uv.row + 1) * frameH + frameH * 0.05
-    );
-
-    return tex;
-  }, [baseTexture, characterId]);
-}
-
 function CharacterSprite({
   player,
   isCurrentTurn,
@@ -657,7 +702,36 @@ function CharacterSprite({
   isCurrentTurn: boolean;
   onGroupRef: (g: THREE.Group | null) => void;
 }) {
-  const texture = useCharTexture(player.characterId);
+  const baseTexture = useLoader(THREE.TextureLoader, '/characters.png');
+  const texture = useMemo(() => {
+    const tex = baseTexture.clone();
+    tex.needsUpdate = true;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    const row = CHARACTER_SHEET_ROW[player.characterId] ?? 0;
+    applySpriteFrameUV(tex, row, 'front');
+    return tex;
+  }, [baseTexture, player.characterId]);
+
+  const lastFacingRef = useRef<CardinalFacing>('front');
+  const lastPosRef = useRef({ x: player.position.x, z: player.position.z });
+
+  useEffect(() => {
+    lastFacingRef.current = 'front';
+    lastPosRef.current = { x: player.position.x, z: player.position.z };
+  }, [player.id]);
+
+  useFrame(() => {
+    const body = getBody(`player_${player.id}`);
+    if (!body) return;
+    const localId = useGameStore.getState().playerId ?? undefined;
+    const row = CHARACTER_SHEET_ROW[player.characterId] ?? 0;
+    const facing = computeFacing(player.id, localId, body, lastPosRef.current, lastFacingRef.current);
+    lastFacingRef.current = facing;
+    applySpriteFrameUV(texture, row, facing);
+    lastPosRef.current = { x: body.position.x, z: body.position.z };
+  });
+
   const color = CHAR_COLORS[player.characterId] || '#8e9aaf';
 
   return (
