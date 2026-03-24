@@ -83,11 +83,9 @@ function applySpriteFrameUV(tex: THREE.Texture, spriteRow: number, facing: Cardi
   const frameW = 1 / SPRITE_SHEET_COLS;
   const frameH = 1 / SPRITE_SHEET_ROWS;
   const dirCol = DIR_COL[facing];
-  tex.repeat.set(frameW * 0.23, frameH * 0.9);
-  tex.offset.set(
-    dirCol * frameW + frameW * 0.05,
-    1 - (spriteRow + 1) * frameH + frameH * 0.05
-  );
+  // One full cell per frame (4×6 grid). Old 0.23× hack was for the previous 2×3 sheet and caused zoom/crop.
+  tex.repeat.set(frameW, frameH);
+  tex.offset.set(dirCol * frameW, 1 - (spriteRow + 1) * frameH);
   tex.needsUpdate = true;
 }
 
