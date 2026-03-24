@@ -91,11 +91,11 @@ function applySpriteSheetUV(geometry: THREE.BufferGeometry, spriteRow: number, f
 
   const uv = geometry.attributes.uv;
   if (!uv) return;
-  // PlaneGeometry 1×1 vertex order: (0,1), (1,1), (0,0), (1,0) in plane UV space
-  uv.setXY(0, u0, vTop);
-  uv.setXY(1, u1, vTop);
-  uv.setXY(2, u0, vBot);
-  uv.setXY(3, u1, vBot);
+  // PlaneGeometry 1×1: verts 0,1 = top of quad (high v), 2,3 = bottom. Swap vTop/vBot vs texture so PNG isn’t upside-down.
+  uv.setXY(0, u0, vBot);
+  uv.setXY(1, u1, vBot);
+  uv.setXY(2, u0, vTop);
+  uv.setXY(3, u1, vTop);
   uv.needsUpdate = true;
 }
 
