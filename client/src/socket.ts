@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { useGameStore } from './store';
 
-const SERVER_URL = window.location.origin;
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
 
 let socket: Socket | null = null;
 

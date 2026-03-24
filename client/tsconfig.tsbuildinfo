@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/socket.ts","./src/store.ts","./src/types.ts","./src/vite-env.d.ts","./src/game/gamescene.tsx","./src/game/inputkeys.ts","./src/game/physics.ts","./src/ui/chatpanel.tsx","./src/ui/gameview.tsx","./src/ui/lobby.tsx","./src/ui/room.tsx","./src/ui/settingsmodal.tsx"],"version":"5.9.3"}
