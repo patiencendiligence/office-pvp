@@ -113,8 +113,44 @@ export function GameScene() {
   const orbitRef = useRef<any>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const projIdCounter = useRef(0);
+  const keysPressed = useRef<Set<string>>(new Set());
+  const positionSyncTimer = useRef(0);
 
   const mapId = currentRoom?.mapId || 'office';
+
+  // Keyboard input
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+        keysPressed.current.add(key);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key.toLowerCase());
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
+  // Expose mobile dpad control
+  const applyMobileMove = useCallback((dir: string, pressed: boolean) => {
+    if (pressed) {
+      keysPressed.current.add(dir);
+    } else {
+      keysPressed.current.delete(dir);
+    }
+  }, []);
+
+  // Store applyMobileMove on window for the HUD to call
+  useEffect(() => {
+    (window as any).__applyMobileMove = applyMobileMove;
+    return () => { delete (window as any).__applyMobileMove; };
+  }, [applyMobileMove]);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -160,9 +196,23 @@ export function GameScene() {
       spawnParticles(data.targetId);
     };
 
+    const moveHandler = (data: { playerId: string; position: Vec3 }) => {
+      if (data.playerId === useGameStore.getState().playerId) return;
+      const bodyId = playerBodies.current.get(data.playerId);
+      if (bodyId) {
+        const body = getBody(bodyId);
+        if (body) {
+          body.position.set(data.position.x, data.position.y, data.position.z);
+          body.velocity.set(0, 0, 0);
+        }
+      }
+    };
+
     sock.on('game:hit', hitHandler);
+    sock.on('game:playerMoved', moveHandler);
     return () => {
       sock.off('game:hit', hitHandler);
+      sock.off('game:playerMoved', moveHandler);
     };
   }, []);
 
@@ -286,6 +336,54 @@ export function GameScene() {
   useFrame((state, delta) => {
     sceneRef.current = state.scene;
     stepPhysics(delta);
+
+    // Player movement
+    const isMyTurnNow = currentRoom?.phase === 'playing' && currentRoom?.currentTurnPlayer === playerId;
+    if (isMyTurnNow && playerId) {
+      const bodyId = playerBodies.current.get(playerId);
+      if (bodyId) {
+        const body = getBody(bodyId);
+        if (body) {
+          const MOVE_FORCE = 40;
+          const keys = keysPressed.current;
+          let fx = 0, fz = 0;
+          if (keys.has('a') || keys.has('arrowleft')) fx -= MOVE_FORCE;
+          if (keys.has('d') || keys.has('arrowright')) fx += MOVE_FORCE;
+          if (keys.has('w') || keys.has('arrowup')) fz -= MOVE_FORCE;
+          if (keys.has('s') || keys.has('arrowdown')) fz += MOVE_FORCE;
+
+          if (fx !== 0 || fz !== 0) {
+            body.applyForce(new CANNON.Vec3(fx, 0, fz));
+          }
+
+          const maxSpeed = 6;
+          const vx = body.velocity.x;
+          const vz = body.velocity.z;
+          const speed = Math.sqrt(vx * vx + vz * vz);
+          if (speed > maxSpeed) {
+            const scale = maxSpeed / speed;
+            body.velocity.x *= scale;
+            body.velocity.z *= scale;
+          }
+        }
+      }
+
+      positionSyncTimer.current += delta;
+      if (positionSyncTimer.current > 0.1) {
+        positionSyncTimer.current = 0;
+        const bodyId2 = playerBodies.current.get(playerId);
+        if (bodyId2) {
+          const body2 = getBody(bodyId2);
+          if (body2) {
+            getSocket().emit('game:playerPosition', {
+              x: body2.position.x,
+              y: body2.position.y,
+              z: body2.position.z,
+            });
+          }
+        }
+      }
+    }
 
     if (currentRoom) {
       const players = Object.values(currentRoom.players);

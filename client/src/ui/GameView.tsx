@@ -109,8 +109,34 @@ export function GameView() {
         {/* Turn indicator */}
         {currentRoom.phase === 'playing' && (
           <div className="turn-indicator">
-            {isMyTurn ? 'Your Turn! Drag to aim & throw' : `${players.find(p => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
+            {isMyTurn ? 'Your Turn! WASD to move, drag to throw' : `${players.find(p => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
             <span className="timer">{currentRoom.turnTimeLeft}s</span>
+          </div>
+        )}
+
+        {/* D-pad for mobile */}
+        {isMyTurn && currentRoom.phase === 'playing' && (
+          <div className="dpad">
+            <button className="dpad-btn dpad-up"
+              onPointerDown={() => (window as any).__applyMobileMove?.('w', true)}
+              onPointerUp={() => (window as any).__applyMobileMove?.('w', false)}
+              onPointerLeave={() => (window as any).__applyMobileMove?.('w', false)}
+            >&#9650;</button>
+            <button className="dpad-btn dpad-left"
+              onPointerDown={() => (window as any).__applyMobileMove?.('a', true)}
+              onPointerUp={() => (window as any).__applyMobileMove?.('a', false)}
+              onPointerLeave={() => (window as any).__applyMobileMove?.('a', false)}
+            >&#9664;</button>
+            <button className="dpad-btn dpad-right"
+              onPointerDown={() => (window as any).__applyMobileMove?.('d', true)}
+              onPointerUp={() => (window as any).__applyMobileMove?.('d', false)}
+              onPointerLeave={() => (window as any).__applyMobileMove?.('d', false)}
+            >&#9654;</button>
+            <button className="dpad-btn dpad-down"
+              onPointerDown={() => (window as any).__applyMobileMove?.('s', true)}
+              onPointerUp={() => (window as any).__applyMobileMove?.('s', false)}
+              onPointerLeave={() => (window as any).__applyMobileMove?.('s', false)}
+            >&#9660;</button>
           </div>
         )}
 
