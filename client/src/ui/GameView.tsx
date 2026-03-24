@@ -145,7 +145,7 @@ export function GameView() {
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+              onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && sendChat()}
               placeholder="Chat..."
             />
             <button onClick={sendChat}>Send</button>

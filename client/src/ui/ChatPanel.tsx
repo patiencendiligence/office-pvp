@@ -68,7 +68,7 @@ export function ChatPanel() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && send()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && send()}
           placeholder={chatTab === 'room' ? 'Room chat...' : 'Global chat...'}
           maxLength={200}
         />
