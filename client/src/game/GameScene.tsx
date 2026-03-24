@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useFrame, useThree, useLoader } from '@react-three/fiber';
 import { OrbitControls, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
@@ -79,14 +79,24 @@ const CHARACTER_SHEET_ROW: Record<string, number> = {
   seagull: 5,
 };
 
-function applySpriteFrameUV(tex: THREE.Texture, spriteRow: number, facing: CardinalFacing) {
-  const frameW = 1 / SPRITE_SHEET_COLS;
-  const frameH = 1 / SPRITE_SHEET_ROWS;
+/** Map one 4×6 cell via geometry UV (avoids texture matrix + flipY mismatch that caused crop/wrong frame). */
+function applySpriteSheetUV(geometry: THREE.BufferGeometry, spriteRow: number, facing: CardinalFacing) {
   const dirCol = DIR_COL[facing];
-  // One full cell per frame (4×6 grid). Old 0.23× hack was for the previous 2×3 sheet and caused zoom/crop.
-  tex.repeat.set(frameW, frameH);
-  tex.offset.set(dirCol * frameW, 1 - (spriteRow + 1) * frameH);
-  tex.needsUpdate = true;
+  const cols = SPRITE_SHEET_COLS;
+  const rows = SPRITE_SHEET_ROWS;
+  const u0 = dirCol / cols;
+  const u1 = (dirCol + 1) / cols;
+  const vTop = 1 - spriteRow / rows;
+  const vBot = 1 - (spriteRow + 1) / rows;
+
+  const uv = geometry.attributes.uv;
+  if (!uv) return;
+  // PlaneGeometry 1×1 vertex order: (0,1), (1,1), (0,0), (1,0) in plane UV space
+  uv.setXY(0, u0, vTop);
+  uv.setXY(1, u1, vTop);
+  uv.setXY(2, u0, vBot);
+  uv.setXY(3, u1, vBot);
+  uv.needsUpdate = true;
 }
 
 function computeFacing(
@@ -94,9 +104,11 @@ function computeFacing(
   localPlayerId: string | undefined,
   body: CANNON.Body,
   lastPos: { x: number; z: number },
-  lastFacing: CardinalFacing
+  lastFacing: CardinalFacing,
+  delta: number
 ): CardinalFacing {
   const isLocal = localPlayerId === playerId;
+  const dt = Math.max(delta, 1e-4);
 
   if (isLocal) {
     let fx = 0;
@@ -113,24 +125,18 @@ function computeFacing(
     }
   }
 
-  const vx = body.velocity.x;
-  const vz = body.velocity.z;
+  // Remote bodies often have velocity cleared on sync; use frame delta as velocity estimate.
+  const extVx = (body.position.x - lastPos.x) / dt;
+  const extVz = (body.position.z - lastPos.z) / dt;
+  const vx = Math.abs(body.velocity.x) > 0.12 ? body.velocity.x : extVx;
+  const vz = Math.abs(body.velocity.z) > 0.12 ? body.velocity.z : extVz;
+
   const speed = Math.sqrt(vx * vx + vz * vz);
-  if (speed > 0.2) {
+  if (speed > 0.1) {
     if (Math.abs(vx) >= Math.abs(vz)) {
       return vx < 0 ? 'left' : 'right';
     }
     return vz < 0 ? 'back' : 'front';
-  }
-
-  const dx = body.position.x - lastPos.x;
-  const dz = body.position.z - lastPos.z;
-  const d = Math.sqrt(dx * dx + dz * dz);
-  if (d > 0.008) {
-    if (Math.abs(dx) >= Math.abs(dz)) {
-      return dx < 0 ? 'left' : 'right';
-    }
-    return dz < 0 ? 'back' : 'front';
   }
 
   return lastFacing;
@@ -701,13 +707,20 @@ function CharacterSprite({
   onGroupRef: (g: THREE.Group | null) => void;
 }) {
   const baseTexture = useLoader(THREE.TextureLoader, '/characters.png');
+  const meshRef = useRef<THREE.Mesh>(null);
+
   const texture = useMemo(() => {
     const tex = baseTexture.clone();
-    tex.needsUpdate = true;
+    tex.repeat.set(1, 1);
+    tex.offset.set(0, 0);
+    tex.center.set(0, 0);
+    tex.rotation = 0;
+    tex.flipY = false;
+    tex.generateMipmaps = false;
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
-    const row = CHARACTER_SHEET_ROW[player.characterId] ?? 0;
-    applySpriteFrameUV(tex, row, 'front');
+    tex.needsUpdate = true;
+    tex.updateMatrix();
     return tex;
   }, [baseTexture, player.characterId]);
 
@@ -719,14 +732,22 @@ function CharacterSprite({
     lastPosRef.current = { x: player.position.x, z: player.position.z };
   }, [player.id]);
 
-  useFrame(() => {
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const row = CHARACTER_SHEET_ROW[player.characterId] ?? 0;
+    applySpriteSheetUV(mesh.geometry as THREE.BufferGeometry, row, 'front');
+  }, [player.characterId, player.id]);
+
+  useFrame((_, delta) => {
     const body = getBody(`player_${player.id}`);
-    if (!body) return;
+    const mesh = meshRef.current;
+    if (!body || !mesh) return;
     const localId = useGameStore.getState().playerId ?? undefined;
     const row = CHARACTER_SHEET_ROW[player.characterId] ?? 0;
-    const facing = computeFacing(player.id, localId, body, lastPosRef.current, lastFacingRef.current);
+    const facing = computeFacing(player.id, localId, body, lastPosRef.current, lastFacingRef.current, delta);
     lastFacingRef.current = facing;
-    applySpriteFrameUV(texture, row, facing);
+    applySpriteSheetUV(mesh.geometry as THREE.BufferGeometry, row, facing);
     lastPosRef.current = { x: body.position.x, z: body.position.z };
   });
 
@@ -738,7 +759,7 @@ function CharacterSprite({
       position={[player.position.x, player.position.y, player.position.z]}
     >
       <Billboard follow lockX={false} lockY={false} lockZ={false}>
-        <mesh position={[0, 0.8, 0]}>
+        <mesh ref={meshRef} position={[0, 0.8, 0]}>
           <planeGeometry args={[1.6, 2.0]} />
           <meshBasicMaterial
             map={texture}
