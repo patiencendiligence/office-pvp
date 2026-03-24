@@ -14,14 +14,11 @@ export function Room() {
 
   const players = Object.values(currentRoom.players);
   const emptySlots = currentRoom.maxPlayers - players.length;
+  const hasBots = players.some((p) => p.isBot);
 
-  const leaveRoom = () => {
-    getSocket().emit('room:leave');
-  };
-
-  const startGame = () => {
-    getSocket().emit('game:start');
-  };
+  const leaveRoom = () => getSocket().emit('room:leave');
+  const startGame = () => getSocket().emit('game:start');
+  const addBot = () => getSocket().emit('game:addBot');
 
   const getChar = (charId: string) => characters.find((c) => c.id === charId);
   const getCharColor = (charId: string) => getChar(charId)?.color || '#8e9aaf';
@@ -45,6 +42,11 @@ export function Room() {
             <button className="btn btn-secondary btn-sm" onClick={leaveRoom}>
               Leave
             </button>
+            {emptySlots > 0 && currentRoom.phase === 'waiting' && (
+              <button className="btn btn-secondary btn-sm" onClick={addBot}>
+                + Add Bot
+              </button>
+            )}
             {players.length >= 2 && (
               <button className="btn btn-primary btn-sm" onClick={startGame}>
                 Start Game
@@ -55,16 +57,17 @@ export function Room() {
 
         <div className="player-grid">
           {players.map((p) => (
-            <div key={p.id} className="player-slot">
+            <div key={p.id} className="player-slot" style={p.isBot ? { borderColor: 'var(--warning)', borderStyle: 'dashed' } : undefined}>
               <div
                 className="player-slot-avatar"
                 style={{ background: getCharColor(p.characterId) }}
               >
-                {p.nickname[0]?.toUpperCase()}
+                {p.isBot ? 'B' : p.nickname[0]?.toUpperCase()}
               </div>
               <div className="player-slot-name">
                 {p.nickname}
                 {p.id === playerId && ' (You)'}
+                {p.isBot && ' (Bot)'}
               </div>
               <div className="player-slot-char">{getCharName(p.characterId)}</div>
             </div>
@@ -78,7 +81,7 @@ export function Room() {
 
         <div style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center' }}>
           {players.length < 2
-            ? 'Need at least 2 players to start'
+            ? 'Need at least 2 players to start. Add a bot to play solo!'
             : 'Ready to start! Any player can click Start Game.'}
         </div>
       </div>

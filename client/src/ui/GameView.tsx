@@ -94,7 +94,7 @@ export function GameView() {
               <div key={p.id} className={`hp-card ${isTurn ? 'active-turn' : ''} ${!p.isAlive ? 'dead' : ''}`}>
                 <div className="hp-name">
                   <span style={{ color: getCharColor(p.characterId) }}>
-                    {p.nickname}{p.id === playerId ? ' (You)' : ''}
+                    {p.nickname}{p.id === playerId ? ' (You)' : ''}{p.isBot ? ' (Bot)' : ''}
                   </span>
                   <span>{p.hp}/{p.maxHp}</span>
                 </div>

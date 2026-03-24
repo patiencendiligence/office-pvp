@@ -13,6 +13,7 @@ export interface PlayerState {
   position: Vec3;
   score: number;
   isAlive: boolean;
+  isBot: boolean;
 }
 
 export interface ProjectileData {

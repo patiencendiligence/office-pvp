@@ -1,14 +1,19 @@
-import { RoomState, PlayerState, ProjectileData, Vec3, GAME_CONFIG, MAP_CONFIGS, THROWABLE_OBJECTS, getCharacterDef } from './types';
+import { RoomState, PlayerState, ProjectileData, Vec3, GAME_CONFIG, MAP_CONFIGS, THROWABLE_OBJECTS, CHARACTERS, getCharacterDef } from './types';
 
-let messageIdCounter = 0;
+let botIdCounter = 0;
+
+const BOT_NAMES = ['Bot Karen', 'Bot Steve', 'Bot Linda'];
+const BOT_CHARACTERS = ['pigeon', 'duck', 'owl', 'chicken', 'parrot', 'seagull'];
 
 export class GameRoom {
   state: RoomState;
   private turnTimer: NodeJS.Timeout | null = null;
+  private botTimer: NodeJS.Timeout | null = null;
   private onStateChange: (room: GameRoom) => void;
   private onTurnEnd: (room: GameRoom) => void;
   private onGameEnd: (room: GameRoom) => void;
   private onHit: (room: GameRoom, targetId: string, damage: number, knockback: Vec3) => void;
+  private onBotThrow: (room: GameRoom, projectile: ProjectileData) => void;
 
   constructor(
     id: string,
@@ -19,6 +24,7 @@ export class GameRoom {
       onTurnEnd: (room: GameRoom) => void;
       onGameEnd: (room: GameRoom) => void;
       onHit: (room: GameRoom, targetId: string, damage: number, knockback: Vec3) => void;
+      onBotThrow: (room: GameRoom, projectile: ProjectileData) => void;
     }
   ) {
     this.state = {
@@ -38,6 +44,7 @@ export class GameRoom {
     this.onTurnEnd = callbacks.onTurnEnd;
     this.onGameEnd = callbacks.onGameEnd;
     this.onHit = callbacks.onHit;
+    this.onBotThrow = callbacks.onBotThrow;
   }
 
   addPlayer(id: string, nickname: string, characterId: string): PlayerState | null {
@@ -57,10 +64,41 @@ export class GameRoom {
       position: { ...mapConfig.spawnPoints[spawnIndex] },
       score: 0,
       isAlive: true,
+      isBot: false,
     };
 
     this.state.players.set(id, player);
     this.state.turnOrder.push(id);
+    this.onStateChange(this);
+    return player;
+  }
+
+  addBot(): PlayerState | null {
+    if (this.state.players.size >= this.state.maxPlayers) return null;
+    if (this.state.phase === 'playing') return null;
+
+    const botId = `bot_${++botIdCounter}_${Date.now()}`;
+    const botIndex = botIdCounter % BOT_NAMES.length;
+    const charId = BOT_CHARACTERS[Math.floor(Math.random() * BOT_CHARACTERS.length)];
+
+    const mapConfig = MAP_CONFIGS.find(m => m.id === this.state.mapId) || MAP_CONFIGS[0];
+    const spawnIndex = this.state.players.size % mapConfig.spawnPoints.length;
+
+    const charDef = getCharacterDef(charId);
+    const player: PlayerState = {
+      id: botId,
+      nickname: BOT_NAMES[botIndex],
+      characterId: charId,
+      hp: charDef.hp,
+      maxHp: charDef.hp,
+      position: { ...mapConfig.spawnPoints[spawnIndex] },
+      score: 0,
+      isAlive: true,
+      isBot: true,
+    };
+
+    this.state.players.set(botId, player);
+    this.state.turnOrder.push(botId);
     this.onStateChange(this);
     return player;
   }
@@ -88,6 +126,15 @@ export class GameRoom {
     return had;
   }
 
+  removeBots(): void {
+    const botIds = Array.from(this.state.players.keys()).filter(id => id.startsWith('bot_'));
+    for (const id of botIds) {
+      this.state.players.delete(id);
+      this.state.turnOrder = this.state.turnOrder.filter(pid => pid !== id);
+    }
+    this.onStateChange(this);
+  }
+
   startGame(): boolean {
     if (this.state.players.size < GAME_CONFIG.MIN_PLAYERS) return false;
     if (this.state.phase !== 'waiting') return false;
@@ -100,12 +147,21 @@ export class GameRoom {
 
     this.startTurnTimer();
     this.onStateChange(this);
+
+    this.checkBotTurn();
     return true;
   }
 
   getCurrentTurnPlayer(): string | null {
     if (this.state.phase !== 'playing') return null;
     return this.state.turnOrder[this.state.currentTurnIndex] || null;
+  }
+
+  isCurrentTurnBot(): boolean {
+    const pid = this.getCurrentTurnPlayer();
+    if (!pid) return false;
+    const player = this.state.players.get(pid);
+    return !!player?.isBot;
   }
 
   handleThrow(playerId: string, objectType: string, velocity: Vec3): ProjectileData | null {
@@ -197,8 +253,61 @@ export class GameRoom {
     }
   }
 
+  private checkBotTurn(): void {
+    if (this.botTimer) {
+      clearTimeout(this.botTimer);
+      this.botTimer = null;
+    }
+
+    if (this.state.phase !== 'playing') return;
+    if (!this.isCurrentTurnBot()) return;
+
+    const delay = 1000 + Math.random() * 1500;
+    this.botTimer = setTimeout(() => {
+      this.executeBotTurn();
+    }, delay);
+  }
+
+  private executeBotTurn(): void {
+    const botId = this.getCurrentTurnPlayer();
+    if (!botId) return;
+
+    const bot = this.state.players.get(botId);
+    if (!bot || !bot.isAlive || !bot.isBot) return;
+
+    const targets = this.getAlivePlayers().filter(p => p.id !== botId);
+    if (targets.length === 0) return;
+
+    const target = targets[Math.floor(Math.random() * targets.length)];
+
+    const dx = target.position.x - bot.position.x;
+    const dz = target.position.z - bot.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    const power = 10 + Math.random() * 15;
+    const angle = Math.atan2(dz, dx);
+    const spread = (Math.random() - 0.5) * 0.4;
+
+    const velocity: Vec3 = {
+      x: Math.cos(angle + spread) * power,
+      y: 8 + Math.random() * 6 + dist * 0.3,
+      z: Math.sin(angle + spread) * power,
+    };
+
+    const obj = THROWABLE_OBJECTS[Math.floor(Math.random() * THROWABLE_OBJECTS.length)];
+
+    const projectile = this.handleThrow(botId, obj.id, velocity);
+    if (projectile) {
+      this.onBotThrow(this, projectile);
+    }
+  }
+
   private advanceTurn(): void {
     this.clearTurnTimer();
+    if (this.botTimer) {
+      clearTimeout(this.botTimer);
+      this.botTimer = null;
+    }
 
     if (this.state.phase !== 'playing') return;
 
@@ -221,6 +330,8 @@ export class GameRoom {
     this.startTurnTimer();
     this.onTurnEnd(this);
     this.onStateChange(this);
+
+    this.checkBotTurn();
   }
 
   private startTurnTimer(): void {
@@ -246,6 +357,10 @@ export class GameRoom {
     this.state.phase = 'finished';
     this.state.winnerId = winnerId;
     this.clearTurnTimer();
+    if (this.botTimer) {
+      clearTimeout(this.botTimer);
+      this.botTimer = null;
+    }
 
     if (winnerId) {
       const winner = this.state.players.get(winnerId);
@@ -262,6 +377,10 @@ export class GameRoom {
 
   cleanup(): void {
     this.clearTurnTimer();
+    if (this.botTimer) {
+      clearTimeout(this.botTimer);
+      this.botTimer = null;
+    }
   }
 
   reset(): void {

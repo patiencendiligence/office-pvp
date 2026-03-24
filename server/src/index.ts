@@ -50,6 +50,9 @@ function createRoom(name: string, mapId: string): GameRoom {
     onHit: (r, targetId, damage, knockback) => {
       io.to(r.state.id).emit('game:hit', { targetId, damage, knockback });
     },
+    onBotThrow: (r, projectile) => {
+      io.to(r.state.id).emit('game:projectile', projectile);
+    },
   });
 
   rooms.set(id, room);
@@ -153,8 +156,10 @@ io.on('connection', (socket: Socket) => {
     if (room) {
       socket.leave(roomId);
       room.removePlayer(socket.id);
+      room.removeBots();
 
-      if (room.state.players.size === 0) {
+      const humanCount = Array.from(room.state.players.values()).filter(p => !p.isBot).length;
+      if (humanCount === 0) {
         room.cleanup();
         rooms.delete(roomId);
         roomChatHistories.delete(roomId);
@@ -167,6 +172,21 @@ io.on('connection', (socket: Socket) => {
   });
 
   // ─── Game ────────────────────────────────────────
+  socket.on('game:addBot', () => {
+    const roomId = playerRooms.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    const bot = room.addBot();
+    if (bot) {
+      io.to(roomId).emit('room:state', room.serialize());
+      broadcastRoomList();
+    } else {
+      socket.emit('error', 'Cannot add bot (room full or game in progress)');
+    }
+  });
+
   socket.on('game:start', () => {
     const roomId = playerRooms.get(socket.id);
     if (!roomId) return;
@@ -272,7 +292,10 @@ io.on('connection', (socket: Socket) => {
       const room = rooms.get(roomId);
       if (room) {
         room.removePlayer(socket.id);
-        if (room.state.players.size === 0) {
+        room.removeBots();
+
+        const humanCount = Array.from(room.state.players.values()).filter(p => !p.isBot).length;
+        if (humanCount === 0) {
           room.cleanup();
           rooms.delete(roomId);
           roomChatHistories.delete(roomId);
