@@ -3,6 +3,8 @@ import { Canvas } from '@react-three/fiber';
 import { useGameStore } from '../store';
 import { getSocket } from '../socket';
 import { GameScene } from '../game/GameScene';
+import { MobileGameControls } from './MobileGameControls';
+import { useMobileGameLayout } from './useMobileGameLayout';
 
 const OBJ_ICONS: Record<string, string> = {
   mug: '\u2615',
@@ -14,6 +16,7 @@ const OBJ_ICONS: Record<string, string> = {
 };
 
 export function GameView() {
+  const mobileGameLayout = useMobileGameLayout();
   const currentRoom = useGameStore((s) => s.currentRoom);
   const playerId = useGameStore((s) => s.playerId);
   const objects = useGameStore((s) => s.objects);
@@ -98,7 +101,7 @@ export function GameView() {
         : '';
 
   return (
-    <div className="game-container">
+    <div className={`game-container${mobileGameLayout ? ' game-container--touch' : ''}`.trim()}>
       {hitVisual?.kind === 'critical' && (
         <div className="hit-fx-critical-banner" aria-hidden>
           CRITICAL!
@@ -141,7 +144,11 @@ export function GameView() {
         {/* Turn indicator */}
         {currentRoom.phase === 'playing' && (
           <div className="turn-indicator">
-            {isMyTurn ? 'Your Turn! WASD to move, drag to throw' : `${players.find(p => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
+            {isMyTurn
+              ? mobileGameLayout
+                ? '내 턴 — 조이스틱 이동 · 점프 · 오른쪽 패드 당겨 발사'
+                : 'Your Turn! WASD to move, drag to throw'
+              : `${players.find((p) => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
             <span className="timer">{currentRoom.turnTimeLeft}s</span>
             <button
               type="button"
@@ -165,29 +172,42 @@ export function GameView() {
           </div>
         )}
 
-        {/* D-pad for mobile */}
-        {isMyTurn && currentRoom.phase === 'playing' && (
+        {isMyTurn && currentRoom.phase === 'playing' && mobileGameLayout && <MobileGameControls />}
+
+        {isMyTurn && currentRoom.phase === 'playing' && !mobileGameLayout && (
           <div className="dpad">
-            <button className="dpad-btn dpad-up"
+            <button
+              className="dpad-btn dpad-up"
               onPointerDown={() => (window as any).__applyMobileMove?.('w', true)}
               onPointerUp={() => (window as any).__applyMobileMove?.('w', false)}
               onPointerLeave={() => (window as any).__applyMobileMove?.('w', false)}
-            >&#9650;</button>
-            <button className="dpad-btn dpad-left"
+            >
+              &#9650;
+            </button>
+            <button
+              className="dpad-btn dpad-left"
               onPointerDown={() => (window as any).__applyMobileMove?.('a', true)}
               onPointerUp={() => (window as any).__applyMobileMove?.('a', false)}
               onPointerLeave={() => (window as any).__applyMobileMove?.('a', false)}
-            >&#9664;</button>
-            <button className="dpad-btn dpad-right"
+            >
+              &#9664;
+            </button>
+            <button
+              className="dpad-btn dpad-right"
               onPointerDown={() => (window as any).__applyMobileMove?.('d', true)}
               onPointerUp={() => (window as any).__applyMobileMove?.('d', false)}
               onPointerLeave={() => (window as any).__applyMobileMove?.('d', false)}
-            >&#9654;</button>
-            <button className="dpad-btn dpad-down"
+            >
+              &#9654;
+            </button>
+            <button
+              className="dpad-btn dpad-down"
               onPointerDown={() => (window as any).__applyMobileMove?.('s', true)}
               onPointerUp={() => (window as any).__applyMobileMove?.('s', false)}
               onPointerLeave={() => (window as any).__applyMobileMove?.('s', false)}
-            >&#9660;</button>
+            >
+              &#9660;
+            </button>
           </div>
         )}
 

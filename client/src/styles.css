@@ -944,3 +944,110 @@
 .dpad-down { grid-area: down; }
 .dpad-left { grid-area: left; }
 .dpad-right { grid-area: right; }
+
+/* ─── Mobile: Worms-style joystick + aim pad ───────────────── */
+.game-container--touch .object-selector {
+  bottom: 152px;
+}
+
+.game-container--touch .game-chat {
+  bottom: 156px;
+  max-height: 140px;
+}
+
+.mobile-game-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.mobile-game-controls > * {
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.vj-base {
+  position: absolute;
+  left: 12px;
+  bottom: 108px;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: rgba(22, 24, 34, 0.72);
+  border: 2px solid rgba(108, 99, 255, 0.45);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.vj-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(108, 99, 255, 0.95), rgba(80, 70, 200, 0.9));
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.mobile-jump-btn {
+  position: absolute;
+  left: 136px;
+  bottom: 124px;
+  min-width: 64px;
+  height: 52px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #3d8b6a, #2a6b52);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.mobile-jump-btn:active {
+  transform: scale(0.96);
+}
+
+.aim-pad {
+  position: absolute;
+  right: 10px;
+  bottom: 108px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: rgba(22, 24, 34, 0.72);
+  border: 2px solid rgba(255, 170, 80, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aim-pad-cross {
+  position: absolute;
+  width: 72%;
+  height: 72%;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.aim-pad-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 118%;
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  padding: 0 4px;
+}

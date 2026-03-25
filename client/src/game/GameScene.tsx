@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback, useMemo, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { useFrame, useThree, useLoader } from '@react-three/fiber';
 import { OrbitControls, Text, Billboard } from '@react-three/drei';
@@ -19,6 +19,8 @@ import {
   getBody,
 } from './physics';
 import { keysPressed } from './inputKeys';
+import { mobileBridge } from './mobileBridge';
+import { computeThrowFromAimPull } from './throwAim';
 import type { ProjectileData, Vec3 } from '../types';
 
 const MAP_PLATFORMS: Record<string, Array<{ position: Vec3; size: Vec3; color: string; moving?: boolean }>> = {
@@ -146,11 +148,16 @@ function computeFacing(
     if (keysPressed.has('d') || keysPressed.has('arrowright')) fx += 1;
     if (keysPressed.has('w') || keysPressed.has('arrowup')) fz -= 1;
     if (keysPressed.has('s') || keysPressed.has('arrowdown')) fz += 1;
-    if (fx !== 0 || fz !== 0) {
-      if (Math.abs(fx) >= Math.abs(fz)) {
-        return fx < 0 ? 'left' : 'right';
+    fx += mobileBridge.moveX;
+    fz += mobileBridge.moveZ;
+    const flen = Math.hypot(fx, fz);
+    if (flen > 0.08) {
+      const nx = fx / flen;
+      const nz = fz / flen;
+      if (Math.abs(nx) >= Math.abs(nz)) {
+        return nx < 0 ? 'left' : 'right';
       }
-      return fz < 0 ? 'back' : 'front';
+      return nz < 0 ? 'back' : 'front';
     }
   }
 
@@ -222,8 +229,27 @@ export function GameScene() {
   const positionSyncTimer = useRef(0);
   /** target playerId -> performance.now() when they were hit (visual scale pulse). */
   const playerHitPulseAtRef = useRef<Map<string, number>>(new Map());
+  const lastJumpNonceRef = useRef(0);
+
+  const [touchUiLayout, setTouchUiLayout] = useState(false);
+  useEffect(() => {
+    const m1 = window.matchMedia('(pointer: coarse)');
+    const m2 = window.matchMedia('(max-width: 900px)');
+    const sync = () => setTouchUiLayout(m1.matches || m2.matches);
+    sync();
+    m1.addEventListener('change', sync);
+    m2.addEventListener('change', sync);
+    return () => {
+      m1.removeEventListener('change', sync);
+      m2.removeEventListener('change', sync);
+    };
+  }, []);
 
   const mapId = currentRoom?.mapId || 'office';
+  const lockOrbitForTouch =
+    touchUiLayout &&
+    currentRoom?.phase === 'playing' &&
+    currentRoom?.currentTurnPlayer === playerId;
 
   // Keyboard input
   useEffect(() => {
@@ -416,6 +442,13 @@ export function GameScene() {
     (e: THREE.Event) => {
       if (!currentRoom || currentRoom.currentTurnPlayer !== playerId) return;
       if (currentRoom.phase !== 'playing') return;
+      if (
+        typeof window !== 'undefined' &&
+        (window.matchMedia('(pointer: coarse)').matches ||
+          window.matchMedia('(max-width: 900px)').matches)
+      ) {
+        return;
+      }
 
       const event = (e as any).nativeEvent || e;
       aimState.current = {
@@ -450,18 +483,8 @@ export function GameScene() {
 
     const dx = aimState.current.startX - aimState.current.currentX;
     const dy = aimState.current.startY - aimState.current.currentY;
-
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 10) return;
-
-    const power = Math.min(dist / 15, 30);
-    const angle = Math.atan2(dy, dx);
-
-    const velocity: Vec3 = {
-      x: Math.cos(angle) * power,
-      y: Math.abs(Math.sin(angle)) * power * 0.8 + 5,
-      z: 0,
-    };
+    const velocity = computeThrowFromAimPull(dx, dy);
+    if (!velocity) return;
 
     getSocket().emit('game:throw', {
       objectType: selectedObject,
@@ -487,14 +510,26 @@ export function GameScene() {
         if (body) {
           const MOVE_FORCE = 40;
           const keys = keysPressed;
-          let fx = 0, fz = 0;
+          let fx = 0,
+            fz = 0;
           if (keys.has('a') || keys.has('arrowleft')) fx -= MOVE_FORCE;
           if (keys.has('d') || keys.has('arrowright')) fx += MOVE_FORCE;
           if (keys.has('w') || keys.has('arrowup')) fz -= MOVE_FORCE;
           if (keys.has('s') || keys.has('arrowdown')) fz += MOVE_FORCE;
+          const jx = mobileBridge.moveX;
+          const jz = mobileBridge.moveZ;
+          if (Math.abs(jx) > 0.06 || Math.abs(jz) > 0.06) {
+            fx += jx * MOVE_FORCE;
+            fz += jz * MOVE_FORCE;
+          }
 
           if (fx !== 0 || fz !== 0) {
             body.applyForce(new CANNON.Vec3(fx, 0, fz));
+          }
+
+          if (mobileBridge.jumpNonce > lastJumpNonceRef.current) {
+            lastJumpNonceRef.current = mobileBridge.jumpNonce;
+            body.applyImpulse(new CANNON.Vec3(0, 68, 0));
           }
 
           const maxSpeed = 6;
@@ -524,6 +559,8 @@ export function GameScene() {
           }
         }
       }
+    } else if (playerId) {
+      lastJumpNonceRef.current = mobileBridge.jumpNonce;
     }
 
     if (currentRoom) {
@@ -592,9 +629,15 @@ export function GameScene() {
       mp.body.position.x = newX;
     });
 
-    if (aimState.current.active && sceneRef.current) {
-      const dx = aimState.current.startX - aimState.current.currentX;
-      const dy = aimState.current.startY - aimState.current.currentY;
+    const deskAim = aimState.current.active;
+    const mobileAim = mobileBridge.aimDragging;
+    if ((deskAim || mobileAim) && sceneRef.current) {
+      const dx = deskAim
+        ? aimState.current.startX - aimState.current.currentX
+        : mobileBridge.aimDx;
+      const dy = deskAim
+        ? aimState.current.startY - aimState.current.currentY
+        : mobileBridge.aimDy;
       const power = Math.min(Math.sqrt(dx * dx + dy * dy) / 15, 30);
       const angle = Math.atan2(dy, dx);
 
@@ -663,6 +706,7 @@ export function GameScene() {
 
       <OrbitControls
         ref={orbitRef}
+        enabled={!lockOrbitForTouch}
         enablePan={false}
         maxPolarAngle={Math.PI / 2.2}
         minDistance={8}
