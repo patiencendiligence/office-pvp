@@ -48,11 +48,11 @@ export function Room() {
     <div className="room-view">
       <div className="room-main">
         <div className="room-header">
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="room-header-title">
             <h2>{currentRoom.name}</h2>
             <span className="room-map-badge">{currentRoom.mapId}</span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="room-header-actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowHelp(true)}>
               도움말
             </button>

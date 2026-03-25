@@ -263,8 +263,18 @@
 .room-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
+}
+
+.room-header-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
 }
 
 .room-header h2 {
@@ -280,6 +290,18 @@
   font-size: 13px;
   font-weight: 600;
   margin-left: 12px;
+}
+
+.room-header-title .room-map-badge {
+  margin-left: 0;
+}
+
+.room-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .player-grid {
