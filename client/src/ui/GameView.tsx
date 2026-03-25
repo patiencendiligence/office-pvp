@@ -153,7 +153,7 @@ export function GameView() {
               : `${players.find((p) => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
             <span className="timer">{currentRoom.turnTimeLeft}s</span>
             <button type="button" className="btn-hud-help" onClick={() => setShowHelp(true)}>
-              도움말
+              ?
             </button>
             <button
               type="button"
@@ -168,7 +168,7 @@ export function GameView() {
         {currentRoom.phase === 'waiting' && (
           <div className="turn-indicator turn-indicator--waiting">
             <button type="button" className="btn-hud-help" onClick={() => setShowHelp(true)}>
-              도움말
+              ?
             </button>
             <button
               type="button"

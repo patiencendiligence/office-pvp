@@ -54,7 +54,7 @@ export function Room() {
           </div>
           <div className="room-header-actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowHelp(true)}>
-              도움말
+              ?
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowSettings(true)}>
               Settings

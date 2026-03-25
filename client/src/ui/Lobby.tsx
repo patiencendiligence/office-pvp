@@ -41,7 +41,7 @@ export function Lobby() {
               {nickname} | Wins: {wins}
             </span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowHelp(true)}>
-              도움말
+              ?
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowSettings(true)}>
               Settings
