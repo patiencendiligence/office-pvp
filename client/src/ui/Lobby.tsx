@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGameStore } from '../store';
+import { useGameStore, getResolvedCharacterId } from '../store';
 import { getSocket } from '../socket';
 import { ChatPanel } from './ChatPanel';
 import { SettingsModal } from './SettingsModal';
@@ -17,8 +17,10 @@ export function Lobby() {
   const [newRoomMap, setNewRoomMap] = useState('office');
 
   const joinRoom = (roomId: string) => {
-    const characterId = useGameStore.getState().characterId;
-    getSocket().emit('room:join', roomId, characterId);
+    const characterId = getResolvedCharacterId();
+    const sock = getSocket();
+    sock.emit('player:setCharacter', characterId);
+    sock.emit('room:join', { roomId, characterId });
   };
 
   const createRoom = () => {

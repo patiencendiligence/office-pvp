@@ -128,44 +128,60 @@ io.on('connection', (socket: Socket) => {
     socket.emit('room:created', room.serialize());
   });
 
-  socket.on('room:join', (roomId: string, clientCharId?: string) => {
-    const room = rooms.get(roomId);
-    if (!room) return socket.emit('error', 'Room not found');
+  socket.on(
+    'room:join',
+    (payload: string | { roomId: string; characterId?: string }, legacyCharId?: string) => {
+      let roomId: string;
+      let clientCharId: string | undefined;
 
-    const existingRoom = playerRooms.get(socket.id);
-    if (existingRoom) {
-      const oldRoom = rooms.get(existingRoom);
-      if (oldRoom) {
-        socket.leave(existingRoom);
-        oldRoom.removePlayer(socket.id);
+      if (typeof payload === 'string' && payload.length > 0) {
+        roomId = payload;
+        clientCharId = typeof legacyCharId === 'string' ? legacyCharId : undefined;
+      } else if (payload && typeof payload === 'object' && typeof payload.roomId === 'string') {
+        roomId = payload.roomId;
+        clientCharId = payload.characterId;
+      } else {
+        return socket.emit('error', 'Invalid room join');
       }
-    }
 
-    const nick = playerNicknames.get(socket.id) || nickname;
-    let charId = playerCharacters.get(socket.id) || 'pigeon';
-    if (typeof clientCharId === 'string') {
-      const fromClient = CHARACTERS.find((c) => c.id === clientCharId);
-      if (fromClient) {
-        charId = fromClient.id;
-        playerCharacters.set(socket.id, charId);
+      const room = rooms.get(roomId);
+      if (!room) return socket.emit('error', 'Room not found');
+
+      const existingRoom = playerRooms.get(socket.id);
+      if (existingRoom) {
+        const oldRoom = rooms.get(existingRoom);
+        if (oldRoom) {
+          socket.leave(existingRoom);
+          oldRoom.removePlayer(socket.id);
+        }
       }
+
+      const nick = playerNicknames.get(socket.id) || nickname;
+      let charId = playerCharacters.get(socket.id) || 'pigeon';
+      if (typeof clientCharId === 'string') {
+        const fromClient = CHARACTERS.find((c) => c.id === clientCharId);
+        if (fromClient) {
+          charId = fromClient.id;
+          playerCharacters.set(socket.id, charId);
+        }
+      }
+      const player = room.addPlayer(socket.id, nick, charId);
+
+      if (!player) return socket.emit('error', 'Room is full or game in progress');
+
+      playerRooms.set(socket.id, roomId);
+      socket.join(roomId);
+
+      const roomChat = roomChatHistories.get(roomId) || [];
+      socket.emit('room:joined', {
+        room: room.serialize(),
+        roomChat: roomChat.slice(-50),
+      });
+
+      io.to(roomId).emit('room:state', room.serialize());
+      broadcastRoomList();
     }
-    const player = room.addPlayer(socket.id, nick, charId);
-
-    if (!player) return socket.emit('error', 'Room is full or game in progress');
-
-    playerRooms.set(socket.id, roomId);
-    socket.join(roomId);
-
-    const roomChat = roomChatHistories.get(roomId) || [];
-    socket.emit('room:joined', {
-      room: room.serialize(),
-      roomChat: roomChat.slice(-50),
-    });
-
-    io.to(roomId).emit('room:state', room.serialize());
-    broadcastRoomList();
-  });
+  );
 
   socket.on('room:leave', () => {
     const roomId = playerRooms.get(socket.id);

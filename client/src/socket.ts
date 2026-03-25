@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { useGameStore } from './store';
+import { useGameStore, getResolvedCharacterId } from './store';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || window.location.origin;
 
@@ -38,7 +38,11 @@ function setupListeners(sock: Socket) {
       set({ nickname: data.nickname });
     }
 
-    sock.emit('player:setCharacter', store().characterId);
+    const resolvedChar = getResolvedCharacterId();
+    if (resolvedChar !== store().characterId) {
+      set({ characterId: resolvedChar });
+    }
+    sock.emit('player:setCharacter', resolvedChar);
   });
 
   sock.on('room:list', (rooms) => set({ rooms }));

@@ -72,6 +72,17 @@ interface GameStore {
   setHitVisual: (v: null | { kind: 'critical' | 'rank' }) => void;
 }
 
+/** Prefer localStorage (source of truth after Settings) over in-memory store. */
+export function getResolvedCharacterId(): string {
+  try {
+    const ls = localStorage.getItem('office-pvp-character');
+    if (ls != null && ls.trim() !== '') return ls.trim();
+  } catch {
+    /* private mode */
+  }
+  return useGameStore.getState().characterId || 'pigeon';
+}
+
 export const useGameStore = create<GameStore>((set) => ({
   screen: 'lobby',
   setScreen: (s) => set({ screen: s }),
