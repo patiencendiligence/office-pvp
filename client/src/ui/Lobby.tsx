@@ -3,6 +3,7 @@ import { useGameStore, getResolvedCharacterId } from '../store';
 import { getSocket } from '../socket';
 import { ChatPanel } from './ChatPanel';
 import { SettingsModal } from './SettingsModal';
+import { HelpModal } from './HelpModal';
 
 export function Lobby() {
   const rooms = useGameStore((s) => s.rooms);
@@ -12,6 +13,7 @@ export function Lobby() {
   const maps = useGameStore((s) => s.maps);
   const wins = useGameStore((s) => s.wins);
 
+  const [showHelp, setShowHelp] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomMap, setNewRoomMap] = useState('office');
@@ -38,6 +40,9 @@ export function Lobby() {
             <span style={{ fontSize: 13, color: 'var(--text-secondary)', alignSelf: 'center', marginRight: 8 }}>
               {nickname} | Wins: {wins}
             </span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowHelp(true)}>
+              도움말
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowSettings(true)}>
               Settings
             </button>
@@ -71,6 +76,8 @@ export function Lobby() {
       </div>
 
       <ChatPanel />
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 

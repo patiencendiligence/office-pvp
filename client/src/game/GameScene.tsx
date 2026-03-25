@@ -230,6 +230,8 @@ export function GameScene() {
   /** target playerId -> performance.now() when they were hit (visual scale pulse). */
   const playerHitPulseAtRef = useRef<Map<string, number>>(new Map());
   const lastJumpNonceRef = useRef(0);
+  /** One `game:mapFall` per off-map episode (reset when back on platform). */
+  const mapFallLatchRef = useRef(false);
 
   const [touchUiLayout, setTouchUiLayout] = useState(false);
   useEffect(() => {
@@ -573,11 +575,23 @@ export function GameScene() {
 
         const group = playerMeshes.current.get(p.id);
         if (group) {
-          if (p.id === playerId && isPlayerOffMap(body, mapId)) {
-            const r = getMapRespawnCenter(mapId);
-            body.position.set(r.x, r.y, r.z);
-            body.velocity.set(0, 0, 0);
-            getSocket().emit('game:playerPosition', { x: r.x, y: r.y, z: r.z });
+          if (p.id === playerId) {
+            const off = isPlayerOffMap(body, mapId);
+            if (off) {
+              if (
+                currentRoom.phase === 'playing' &&
+                !mapFallLatchRef.current
+              ) {
+                mapFallLatchRef.current = true;
+                getSocket().emit('game:mapFall');
+              }
+              const r = getMapRespawnCenter(mapId);
+              body.position.set(r.x, r.y, r.z);
+              body.velocity.set(0, 0, 0);
+              getSocket().emit('game:playerPosition', { x: r.x, y: r.y, z: r.z });
+            } else {
+              mapFallLatchRef.current = false;
+            }
           }
           group.position.set(body.position.x, body.position.y, body.position.z);
         }

@@ -5,6 +5,7 @@ import { getSocket } from '../socket';
 import { GameScene } from '../game/GameScene';
 import { MobileGameControls } from './MobileGameControls';
 import { useMobileGameLayout } from './useMobileGameLayout';
+import { HelpModal } from './HelpModal';
 
 const OBJ_ICONS: Record<string, string> = {
   mug: '\u2615',
@@ -30,6 +31,7 @@ export function GameView() {
   const chatRef = useRef<HTMLDivElement>(null);
   const hitVisual = useGameStore((s) => s.hitVisual);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     const sock = getSocket();
@@ -150,6 +152,9 @@ export function GameView() {
                 : 'Your Turn! WASD to move, drag to throw'
               : `${players.find((p) => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
             <span className="timer">{currentRoom.turnTimeLeft}s</span>
+            <button type="button" className="btn-hud-help" onClick={() => setShowHelp(true)}>
+              도움말
+            </button>
             <button
               type="button"
               className="btn-leave-room"
@@ -162,6 +167,9 @@ export function GameView() {
 
         {currentRoom.phase === 'waiting' && (
           <div className="turn-indicator turn-indicator--waiting">
+            <button type="button" className="btn-hud-help" onClick={() => setShowHelp(true)}>
+              도움말
+            </button>
             <button
               type="button"
               className="btn-leave-room"
@@ -249,6 +257,8 @@ export function GameView() {
           </div>
         </div>
       </div>
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
       {leaveConfirmOpen && (
         <div

@@ -71,6 +71,7 @@ export class GameRoom {
       score: 0,
       isAlive: true,
       isBot: false,
+      mapFallCount: 0,
     };
 
     this.state.players.set(id, player);
@@ -114,6 +115,7 @@ export class GameRoom {
       score: 0,
       isAlive: true,
       isBot: true,
+      mapFallCount: 0,
     };
 
     this.state.players.set(botId, player);
@@ -184,6 +186,10 @@ export class GameRoom {
 
     this.state.phase = 'playing';
     this.state.currentTurnIndex = 0;
+
+    for (const p of this.state.players.values()) {
+      p.mapFallCount = 0;
+    }
 
     const shuffled = [...this.state.turnOrder].sort(() => Math.random() - 0.5);
     this.state.turnOrder = shuffled;
@@ -309,6 +315,33 @@ export class GameRoom {
     if (player) {
       player.position = position;
     }
+  }
+
+  /** 맵 밖 추락: 1·2회는 남은 HP의 약 1/3 감소, 3회째 탈락. */
+  applyMapFall(playerId: string): void {
+    if (this.state.phase !== 'playing') return;
+    const player = this.state.players.get(playerId);
+    if (!player || !player.isAlive || player.isBot) return;
+
+    player.mapFallCount = (player.mapFallCount ?? 0) + 1;
+
+    if (player.mapFallCount >= 3) {
+      player.hp = 0;
+      player.isAlive = false;
+      const alive = this.getAlivePlayers();
+      if (alive.length <= 1) {
+        this.endGame(alive[0]?.id || null);
+        return;
+      }
+      if (this.getCurrentTurnPlayer() === playerId) {
+        this.advanceTurn();
+        return;
+      }
+    } else {
+      player.hp = Math.max(1, Math.floor((player.hp * 2) / 3));
+    }
+
+    this.onStateChange(this);
   }
 
   private checkBotTurn(): void {
@@ -451,6 +484,7 @@ export class GameRoom {
       player.hp = charDef.hp;
       player.maxHp = charDef.hp;
       player.isAlive = true;
+      player.mapFallCount = 0;
       player.position = { ...mapConfig.spawnPoints[i % mapConfig.spawnPoints.length] };
       i++;
     }

@@ -3,6 +3,7 @@ import { useGameStore } from '../store';
 import { getSocket } from '../socket';
 import { ChatPanel } from './ChatPanel';
 import { SettingsModal } from './SettingsModal';
+import { HelpModal } from './HelpModal';
 
 export function Room() {
   const currentRoom = useGameStore((s) => s.currentRoom);
@@ -11,6 +12,7 @@ export function Room() {
   const showSettings = useGameStore((s) => s.showSettings);
   const setShowSettings = useGameStore((s) => s.setShowSettings);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const emitLeaveRoom = useCallback(() => {
     getSocket().emit('room:leave');
@@ -51,6 +53,9 @@ export function Room() {
             <span className="room-map-badge">{currentRoom.mapId}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowHelp(true)}>
+              도움말
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={() => setShowSettings(true)}>
               Settings
             </button>
@@ -102,6 +107,8 @@ export function Room() {
       </div>
 
       <ChatPanel />
+
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 

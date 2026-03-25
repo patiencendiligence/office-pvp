@@ -828,6 +828,63 @@
   margin-top: 20px;
 }
 
+.help-modal {
+  max-width: min(440px, 94vw);
+  max-height: min(86vh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.help-modal-body {
+  overflow-y: auto;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  padding-right: 4px;
+}
+
+.help-modal-body section {
+  margin-bottom: 14px;
+}
+
+.help-modal-body h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.help-modal-body p {
+  margin: 0;
+}
+
+.help-modal-body ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.help-modal-body li {
+  margin-bottom: 6px;
+}
+
+.btn-hud-help {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(108, 99, 255, 0.12);
+  color: var(--accent, #a8a0ff);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-hud-help:hover {
+  background: rgba(108, 99, 255, 0.22);
+}
+
 /* Create room modal */
 .create-room-form {
   display: flex;

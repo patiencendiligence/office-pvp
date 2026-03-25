@@ -7,7 +7,10 @@ let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(SERVER_URL, { transports: ['websocket', 'polling'] });
+    socket = io(SERVER_URL, {
+      transports: ['websocket', 'polling'],
+      auth: { characterId: getResolvedCharacterId() },
+    });
     setupListeners(socket);
   }
   return socket;

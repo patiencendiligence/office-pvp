@@ -76,7 +76,14 @@ function createRoom(name: string, mapId: string): GameRoom {
 io.on('connection', (socket: Socket) => {
   const nickname = `Player_${socket.id.slice(0, 4)}`;
   playerNicknames.set(socket.id, nickname);
-  playerCharacters.set(socket.id, 'pigeon');
+
+  const auth = socket.handshake.auth as { characterId?: string } | undefined;
+  let initialChar = 'pigeon';
+  if (auth && typeof auth.characterId === 'string') {
+    const ok = CHARACTERS.find((c) => c.id === auth.characterId);
+    if (ok) initialChar = ok.id;
+  }
+  playerCharacters.set(socket.id, initialChar);
 
   socket.emit('welcome', {
     playerId: socket.id,
@@ -275,6 +282,14 @@ io.on('connection', (socket: Socket) => {
     if (!room) return;
     room.updatePlayerPosition(socket.id, pos);
     socket.to(roomId).emit('game:playerMoved', { playerId: socket.id, position: pos });
+  });
+
+  socket.on('game:mapFall', () => {
+    const roomId = playerRooms.get(socket.id);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    room.applyMapFall(socket.id);
   });
 
   socket.on('game:restart', () => {

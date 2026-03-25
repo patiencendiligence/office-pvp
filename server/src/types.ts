@@ -14,6 +14,8 @@ export interface PlayerState {
   score: number;
   isAlive: boolean;
   isBot: boolean;
+  /** 같은 게임(playing) 중 맵 밖 추락 횟수; 3회 시 탈락. */
+  mapFallCount: number;
 }
 
 export interface ProjectileData {

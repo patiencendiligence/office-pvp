@@ -14,6 +14,7 @@ export interface PlayerState {
   score: number;
   isAlive: boolean;
   isBot: boolean;
+  mapFallCount?: number;
 }
 
 export interface RoomData {
