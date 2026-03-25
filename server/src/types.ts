@@ -190,7 +190,7 @@ export function getCharacterDef(id: string): CharacterDef {
 
 export const GAME_CONFIG = {
   MAX_HP: 100, // base, overridden by character HP
-  TURN_DURATION: 15,
+  TURN_DURATION: 10,
   MAX_THROW_POWER: 30,
   KNOCKBACK_MULTIPLIER: 2.0,
   FALL_DAMAGE_THRESHOLD: -5,

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import type { MutableRefObject } from 'react';
 import { useFrame, useThree, useLoader } from '@react-three/fiber';
 import { OrbitControls, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
@@ -79,8 +80,13 @@ const CHARACTER_SHEET_ROW: Record<string, number> = {
   seagull: 5,
 };
 
-/** characters.png cells have extra transparent padding top-left; shift quad so feet sit over the turn ring. */
-const SPRITE_PLANE_OFFSET: [number, number, number] = [0.12, 0.68, 0];
+/** characters.png cells have extra transparent padding top-left; shift quad so feet sit on the turn ring (not floating). */
+const SPRITE_PLANE_OFFSET: [number, number, number] = [0.15, 0.48, 0];
+
+/** Hit feedback: scale pulse peak and duration (ms). */
+const HIT_SCALE_PEAK = 1.22;
+const HIT_SCALE_RISE_MS = 72;
+const HIT_SCALE_FALL_MS = 170;
 
 /** Map one 4×6 cell via geometry UV (avoids texture matrix + flipY mismatch that caused crop/wrong frame). */
 function applySpriteSheetUV(geometry: THREE.BufferGeometry, spriteRow: number, facing: CardinalFacing) {
@@ -194,6 +200,8 @@ export function GameScene() {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const projIdCounter = useRef(0);
   const positionSyncTimer = useRef(0);
+  /** target playerId -> performance.now() when they were hit (visual scale pulse). */
+  const playerHitPulseAtRef = useRef<Map<string, number>>(new Map());
 
   const mapId = currentRoom?.mapId || 'office';
 
@@ -273,6 +281,7 @@ export function GameScene() {
         }
       }
       spawnParticles(data.targetId);
+      playerHitPulseAtRef.current.set(data.targetId, performance.now());
     };
 
     const moveHandler = (data: { playerId: string; position: Vec3 }) => {
@@ -643,6 +652,7 @@ export function GameScene() {
           key={p.id}
           player={p}
           isCurrentTurn={currentRoom?.currentTurnPlayer === p.id}
+          hitPulseAtRef={playerHitPulseAtRef}
           onGroupRef={(g) => {
             if (g) playerMeshes.current.set(p.id, g);
           }}
@@ -703,10 +713,12 @@ export function GameScene() {
 function CharacterSprite({
   player,
   isCurrentTurn,
+  hitPulseAtRef,
   onGroupRef,
 }: {
   player: { id: string; nickname: string; characterId: string; position: { x: number; y: number; z: number }; isAlive: boolean };
   isCurrentTurn: boolean;
+  hitPulseAtRef: MutableRefObject<Map<string, number>>;
   onGroupRef: (g: THREE.Group | null) => void;
 }) {
   const baseTexture = useLoader(
@@ -714,6 +726,7 @@ function CharacterSprite({
     `${import.meta.env.BASE_URL}characters.png`
   );
   const meshRef = useRef<THREE.Mesh>(null);
+  const visualScaleGroupRef = useRef<THREE.Group>(null);
 
   const texture = useMemo(() => {
     const tex = baseTexture.clone();
@@ -753,8 +766,28 @@ function CharacterSprite({
     const row = CHARACTER_SHEET_ROW[player.characterId] ?? 0;
     const facing = computeFacing(player.id, localId, body, lastPosRef.current, lastFacingRef.current, delta);
     lastFacingRef.current = facing;
-    applySpriteSheetUV(mesh.geometry as THREE.BufferGeometry, row, facing);
+      applySpriteSheetUV(mesh.geometry as THREE.BufferGeometry, row, facing);
     lastPosRef.current = { x: body.position.x, z: body.position.z };
+
+    const pulseT0 = hitPulseAtRef.current.get(player.id);
+    const g = visualScaleGroupRef.current;
+    if (g) {
+      if (pulseT0 === undefined) {
+        g.scale.setScalar(1);
+      } else {
+        const age = performance.now() - pulseT0;
+        const total = HIT_SCALE_RISE_MS + HIT_SCALE_FALL_MS;
+        let s = 1;
+        if (age >= 0 && age < HIT_SCALE_RISE_MS) {
+          s = 1 + (HIT_SCALE_PEAK - 1) * (age / HIT_SCALE_RISE_MS);
+        } else if (age >= HIT_SCALE_RISE_MS && age < total) {
+          s = HIT_SCALE_PEAK - (HIT_SCALE_PEAK - 1) * ((age - HIT_SCALE_RISE_MS) / HIT_SCALE_FALL_MS);
+        } else {
+          s = 1;
+        }
+        g.scale.setScalar(s);
+      }
+    }
   });
 
   const color = CHAR_COLORS[player.characterId] || '#8e9aaf';
@@ -764,37 +797,39 @@ function CharacterSprite({
       ref={onGroupRef}
       position={[player.position.x, player.position.y, player.position.z]}
     >
-      <Billboard follow lockX={false} lockY={false} lockZ={false}>
-        <mesh ref={meshRef} position={SPRITE_PLANE_OFFSET}>
-          <planeGeometry args={[1.6, 2.0]} />
-          <meshBasicMaterial
-            map={texture}
-            transparent
-            alphaTest={0.1}
-            opacity={player.isAlive ? 1 : 0.3}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      </Billboard>
-      <Text
-        position={[0, 1.88, 0]}
-        fontSize={0.25}
-        color="white"
-        anchorX="center"
-        anchorY="bottom"
-        outlineWidth={0.02}
-        outlineColor="black"
-      >
-        {player.nickname}
-      </Text>
+      <group ref={visualScaleGroupRef}>
+        <Billboard follow lockX={false} lockY={false} lockZ={false}>
+          <mesh ref={meshRef} position={SPRITE_PLANE_OFFSET}>
+            <planeGeometry args={[1.6, 2.0]} />
+            <meshBasicMaterial
+              map={texture}
+              transparent
+              alphaTest={0.1}
+              opacity={player.isAlive ? 1 : 0.3}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </Billboard>
+        <Text
+          position={[0, 1.68, 0]}
+          fontSize={0.25}
+          color="white"
+          anchorX="center"
+          anchorY="bottom"
+          outlineWidth={0.02}
+          outlineColor="black"
+        >
+          {player.nickname}
+        </Text>
+        {player.isAlive && (
+          <pointLight position={[0, 0.68, 0]} color={color} intensity={0.5} distance={4} />
+        )}
+      </group>
       {isCurrentTurn && player.isAlive && (
         <mesh position={[0, -0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.5, 0.65, 16]} />
           <meshBasicMaterial color="#6c63ff" transparent opacity={0.7} side={THREE.DoubleSide} />
         </mesh>
-      )}
-      {player.isAlive && (
-        <pointLight position={[0, 0.88, 0]} color={color} intensity={0.5} distance={4} />
       )}
     </group>
   );
