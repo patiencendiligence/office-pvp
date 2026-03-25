@@ -38,10 +38,7 @@ function setupListeners(sock: Socket) {
       set({ nickname: data.nickname });
     }
 
-    const savedChar = store().characterId;
-    if (savedChar !== 'pigeon') {
-      sock.emit('player:setCharacter', savedChar);
-    }
+    sock.emit('player:setCharacter', store().characterId);
   });
 
   sock.on('room:list', (rooms) => set({ rooms }));

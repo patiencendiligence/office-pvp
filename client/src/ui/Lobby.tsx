@@ -17,7 +17,8 @@ export function Lobby() {
   const [newRoomMap, setNewRoomMap] = useState('office');
 
   const joinRoom = (roomId: string) => {
-    getSocket().emit('room:join', roomId);
+    const characterId = useGameStore.getState().characterId;
+    getSocket().emit('room:join', roomId, characterId);
   };
 
   const createRoom = () => {

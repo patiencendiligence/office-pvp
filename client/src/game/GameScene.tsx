@@ -49,6 +49,24 @@ const MAP_PLATFORMS: Record<string, Array<{ position: Vec3; size: Vec3; color: s
   ],
 };
 
+/** Respawn above main floor center when player falls off (avoid using server p.y which can stay deep underground). */
+function getMapRespawnCenter(mapId: string): Vec3 {
+  const main = MAP_PLATFORMS[mapId]?.[0] ?? MAP_PLATFORMS.office[0];
+  const topY = main.position.y + main.size.y / 2 + 2.5;
+  return { x: main.position.x, y: topY, z: main.position.z };
+}
+
+function isPlayerOffMap(body: CANNON.Body, mapId: string): boolean {
+  const main = MAP_PLATFORMS[mapId]?.[0] ?? MAP_PLATFORMS.office[0];
+  const margin = 1.2;
+  const hx = main.size.x / 2 + margin;
+  const hz = main.size.z / 2 + margin;
+  const dx = Math.abs(body.position.x - main.position.x);
+  const dz = Math.abs(body.position.z - main.position.z);
+  if (body.position.y < -8) return true;
+  return dx > hx || dz > hz;
+}
+
 const CHAR_COLORS: Record<string, string> = {
   pigeon: '#8e9aaf',
   duck: '#4a7c3f',
@@ -518,12 +536,13 @@ export function GameScene() {
 
         const group = playerMeshes.current.get(p.id);
         if (group) {
-          group.position.set(body.position.x, body.position.y, body.position.z);
-
-          if (body.position.y < -10) {
-            body.position.set(p.position.x, p.position.y + 5, p.position.z);
+          if (p.id === playerId && isPlayerOffMap(body, mapId)) {
+            const r = getMapRespawnCenter(mapId);
+            body.position.set(r.x, r.y, r.z);
             body.velocity.set(0, 0, 0);
+            getSocket().emit('game:playerPosition', { x: r.x, y: r.y, z: r.z });
           }
+          group.position.set(body.position.x, body.position.y, body.position.z);
         }
       });
     }

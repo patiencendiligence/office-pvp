@@ -128,7 +128,7 @@ io.on('connection', (socket: Socket) => {
     socket.emit('room:created', room.serialize());
   });
 
-  socket.on('room:join', (roomId: string) => {
+  socket.on('room:join', (roomId: string, clientCharId?: string) => {
     const room = rooms.get(roomId);
     if (!room) return socket.emit('error', 'Room not found');
 
@@ -142,7 +142,14 @@ io.on('connection', (socket: Socket) => {
     }
 
     const nick = playerNicknames.get(socket.id) || nickname;
-    const charId = playerCharacters.get(socket.id) || 'pigeon';
+    let charId = playerCharacters.get(socket.id) || 'pigeon';
+    if (typeof clientCharId === 'string') {
+      const fromClient = CHARACTERS.find((c) => c.id === clientCharId);
+      if (fromClient) {
+        charId = fromClient.id;
+        playerCharacters.set(socket.id, charId);
+      }
+    }
     const player = room.addPlayer(socket.id, nick, charId);
 
     if (!player) return socket.emit('error', 'Room is full or game in progress');
