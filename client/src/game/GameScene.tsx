@@ -58,9 +58,11 @@ const CHAR_COLORS: Record<string, string> = {
   seagull: '#f0f0f0',
 };
 
-/** characters.png: 4 columns = left, right, back(상), front(하); 6 rows = one per character */
+/** characters.png 640×1440 → cell 160×240 px (2:3). 4 cols = left, right, back(상), front(하); 6 rows = character */
 const SPRITE_SHEET_COLS = 4;
 const SPRITE_SHEET_ROWS = 6;
+/** World quad matches one cell aspect (160:240) so L/R/front aren’t stretched vs each other. */
+const SPRITE_PLANE_SIZE: [number, number] = [1.6, 2.4];
 
 type CardinalFacing = 'left' | 'right' | 'back' | 'front';
 
@@ -80,8 +82,8 @@ const CHARACTER_SHEET_ROW: Record<string, number> = {
   seagull: 5,
 };
 
-/** characters.png cells have extra transparent padding top-left; shift quad so feet sit on the turn ring (not floating). */
-const SPRITE_PLANE_OFFSET: [number, number, number] = [0.15, 0.48, 0];
+/** Nudge billboard vs physics origin (feet on ring). Tuned for 160×240 cells + plane height 2.4. */
+const SPRITE_PLANE_OFFSET: [number, number, number] = [0.25, 0.45, 0];
 
 /** Hit feedback: scale pulse peak and duration (ms). */
 const HIT_SCALE_PEAK = 1.22;
@@ -239,6 +241,43 @@ export function GameScene() {
     return () => { delete (window as any).__applyMobileMove; };
   }, [applyMobileMove]);
 
+  const spawnParticles = useCallback(
+    (targetId: string, opts?: { critical?: boolean; rankStrike?: boolean }) => {
+      const bodyId = playerBodies.current.get(targetId);
+      if (!bodyId) return;
+      const body = getBody(bodyId);
+      if (!body) return;
+
+      const critical = !!opts?.critical;
+      const rankStrike = !!opts?.rankStrike;
+      const spread = critical ? 14 : rankStrike ? 10 : 8;
+      const vyBoost = critical ? 2.8 : 0;
+
+      for (let i = 0; i < 100; i++) {
+        const idx = i * 3;
+        particlePositions.current[idx] = body.position.x;
+        particlePositions.current[idx + 1] = body.position.y + 1;
+        particlePositions.current[idx + 2] = body.position.z;
+        particleVelocities.current[idx] = (Math.random() - 0.5) * spread;
+        particleVelocities.current[idx + 1] = Math.random() * 6 + 2 + vyBoost;
+        particleVelocities.current[idx + 2] = (Math.random() - 0.5) * spread;
+        particleLifetimes.current[i] = critical ? 1.25 : 1.0;
+      }
+
+      if (particlesRef.current) {
+        const mat = particlesRef.current.material as THREE.PointsMaterial;
+        if (mat) {
+          mat.size = critical ? 0.32 : 0.15;
+          mat.color.setHex(critical ? 0xff4444 : 0xffaa00);
+          mat.needsUpdate = true;
+        }
+        const geo = particlesRef.current.geometry;
+        geo.setAttribute('position', new THREE.BufferAttribute(particlePositions.current.slice(), 3));
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -270,7 +309,14 @@ export function GameScene() {
 
   useEffect(() => {
     const sock = getSocket();
-    const hitHandler = (data: { targetId: string; damage: number; knockback: Vec3 }) => {
+    const hitHandler = (data: {
+      targetId: string;
+      damage: number;
+      knockback: Vec3;
+      critical?: boolean;
+      resist?: boolean;
+      rankStrike?: boolean;
+    }) => {
       const bodyId = playerBodies.current.get(data.targetId);
       if (bodyId) {
         const body = getBody(bodyId);
@@ -280,8 +326,20 @@ export function GameScene() {
           );
         }
       }
-      spawnParticles(data.targetId);
+      spawnParticles(data.targetId, {
+        critical: !!data.critical,
+        rankStrike: !!data.rankStrike,
+      });
       playerHitPulseAtRef.current.set(data.targetId, performance.now());
+
+      const { setHitVisual } = useGameStore.getState();
+      if (data.critical) {
+        setHitVisual({ kind: 'critical' });
+        setTimeout(() => setHitVisual(null), 720);
+      } else if (data.rankStrike) {
+        setHitVisual({ kind: 'rank' });
+        setTimeout(() => setHitVisual(null), 400);
+      }
     };
 
     const moveHandler = (data: { playerId: string; position: Vec3 }) => {
@@ -302,7 +360,7 @@ export function GameScene() {
       sock.off('game:hit', hitHandler);
       sock.off('game:playerMoved', moveHandler);
     };
-  }, []);
+  }, [spawnParticles]);
 
   useEffect(() => {
     if (projectiles.length > 0) {
@@ -335,29 +393,6 @@ export function GameScene() {
       clearProjectiles();
     }
   }, [projectiles, clearProjectiles]);
-
-  const spawnParticles = useCallback((targetId: string) => {
-    const bodyId = playerBodies.current.get(targetId);
-    if (!bodyId) return;
-    const body = getBody(bodyId);
-    if (!body) return;
-
-    for (let i = 0; i < 100; i++) {
-      const idx = i * 3;
-      particlePositions.current[idx] = body.position.x;
-      particlePositions.current[idx + 1] = body.position.y + 1;
-      particlePositions.current[idx + 2] = body.position.z;
-      particleVelocities.current[idx] = (Math.random() - 0.5) * 8;
-      particleVelocities.current[idx + 1] = Math.random() * 6 + 2;
-      particleVelocities.current[idx + 2] = (Math.random() - 0.5) * 8;
-      particleLifetimes.current[i] = 1.0;
-    }
-
-    if (particlesRef.current) {
-      const geo = particlesRef.current.geometry;
-      geo.setAttribute('position', new THREE.BufferAttribute(particlePositions.current.slice(), 3));
-    }
-  }, []);
 
   const handlePointerDown = useCallback(
     (e: THREE.Event) => {
@@ -800,7 +835,7 @@ function CharacterSprite({
       <group ref={visualScaleGroupRef}>
         <Billboard follow lockX={false} lockY={false} lockZ={false}>
           <mesh ref={meshRef} position={SPRITE_PLANE_OFFSET}>
-            <planeGeometry args={[1.6, 2.0]} />
+            <planeGeometry args={[SPRITE_PLANE_SIZE[0], SPRITE_PLANE_SIZE[1]]} />
             <meshBasicMaterial
               map={texture}
               transparent
@@ -811,7 +846,7 @@ function CharacterSprite({
           </mesh>
         </Billboard>
         <Text
-          position={[0, 1.68, 0]}
+          position={[0, 1.88, 0]}
           fontSize={0.25}
           color="white"
           anchorX="center"
@@ -822,7 +857,7 @@ function CharacterSprite({
           {player.nickname}
         </Text>
         {player.isAlive && (
-          <pointLight position={[0, 0.68, 0]} color={color} intensity={0.5} distance={4} />
+          <pointLight position={[0, 0.88, 0]} color={color} intensity={0.5} distance={4} />
         )}
       </group>
       {isCurrentTurn && player.isAlive && (

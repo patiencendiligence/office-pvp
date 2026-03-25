@@ -1,4 +1,10 @@
 import { RoomState, PlayerState, ProjectileData, Vec3, GAME_CONFIG, MAP_CONFIGS, THROWABLE_OBJECTS, CHARACTERS, getCharacterDef } from './types';
+import {
+  computeBaseProjectileDamage,
+  computeFinalDamage,
+  getHitFxFlags,
+  type HitFxFlags,
+} from './combat';
 
 let botIdCounter = 0;
 
@@ -12,7 +18,7 @@ export class GameRoom {
   private onStateChange: (room: GameRoom) => void;
   private onTurnEnd: (room: GameRoom) => void;
   private onGameEnd: (room: GameRoom) => void;
-  private onHit: (room: GameRoom, targetId: string, damage: number, knockback: Vec3) => void;
+  private onHit: (room: GameRoom, targetId: string, damage: number, knockback: Vec3, fx: HitFxFlags) => void;
   private onBotThrow: (room: GameRoom, projectile: ProjectileData) => void;
 
   constructor(
@@ -23,7 +29,7 @@ export class GameRoom {
       onStateChange: (room: GameRoom) => void;
       onTurnEnd: (room: GameRoom) => void;
       onGameEnd: (room: GameRoom) => void;
-      onHit: (room: GameRoom, targetId: string, damage: number, knockback: Vec3) => void;
+      onHit: (room: GameRoom, targetId: string, damage: number, knockback: Vec3, fx: HitFxFlags) => void;
       onBotThrow: (room: GameRoom, projectile: ProjectileData) => void;
     }
   ) {
@@ -73,6 +79,19 @@ export class GameRoom {
     return player;
   }
 
+  /** Waiting-room only: sync character when player changes selection in settings after joining. */
+  setPlayerCharacter(playerId: string, characterId: string): boolean {
+    if (this.state.phase !== 'waiting') return false;
+    const p = this.state.players.get(playerId);
+    if (!p || p.isBot) return false;
+    const charDef = getCharacterDef(characterId);
+    p.characterId = characterId;
+    p.hp = charDef.hp;
+    p.maxHp = charDef.hp;
+    this.onStateChange(this);
+    return true;
+  }
+
   addBot(): PlayerState | null {
     if (this.state.players.size >= this.state.maxPlayers) return null;
     if (this.state.phase === 'playing') return null;
@@ -104,17 +123,41 @@ export class GameRoom {
   }
 
   removePlayer(id: string): boolean {
-    const had = this.state.players.delete(id);
-    this.state.turnOrder = this.state.turnOrder.filter(pid => pid !== id);
+    if (!this.state.players.has(id)) return false;
 
-    if (this.state.currentTurnIndex >= this.state.turnOrder.length) {
-      this.state.currentTurnIndex = 0;
+    const oldCi = this.state.currentTurnIndex;
+    const removeIdx = this.state.turnOrder.indexOf(id);
+    const wasLeavingCurrentTurn = removeIdx !== -1 && removeIdx === oldCi;
+
+    this.state.players.delete(id);
+    this.state.turnOrder = this.state.turnOrder.filter((pid) => pid !== id);
+
+    let newCi = oldCi;
+    if (removeIdx !== -1) {
+      if (removeIdx < oldCi) {
+        newCi = oldCi - 1;
+      } else if (removeIdx === oldCi) {
+        if (oldCi >= this.state.turnOrder.length) {
+          newCi = 0;
+        } else {
+          newCi = oldCi;
+        }
+      }
     }
+    if (this.state.turnOrder.length > 0 && newCi >= this.state.turnOrder.length) {
+      newCi = 0;
+    }
+    this.state.currentTurnIndex = newCi;
 
+    let gameEnded = false;
     if (this.state.phase === 'playing') {
       const alive = this.getAlivePlayers();
       if (alive.length <= 1) {
         this.endGame(alive[0]?.id || null);
+        gameEnded = true;
+      } else if (wasLeavingCurrentTurn) {
+        this.startTurnTimer();
+        this.onTurnEnd(this);
       }
     }
 
@@ -123,7 +166,7 @@ export class GameRoom {
     }
 
     this.onStateChange(this);
-    return had;
+    return true;
   }
 
   removeBots(): void {
@@ -186,7 +229,11 @@ export class GameRoom {
         z: velocity.z * scale,
       },
       mass: obj.mass,
-      damage: Math.round(10 * obj.damageMultiplier * getCharacterDef(player.characterId).power * (clampedSpeed / GAME_CONFIG.MAX_THROW_POWER)),
+      damage: computeBaseProjectileDamage(player.characterId, obj.id, {
+        x: velocity.x * scale,
+        y: velocity.y * scale,
+        z: velocity.z * scale,
+      }),
     };
 
     this.state.projectiles.push(projectile);
@@ -198,7 +245,18 @@ export class GameRoom {
     const target = this.state.players.get(targetId);
     if (!target || !target.isAlive) return;
 
-    const damage = projectile.damage;
+    const attacker = this.state.players.get(projectile.playerId);
+    if (!attacker) return;
+
+    const baseDamage = projectile.damage;
+    const damage = computeFinalDamage(
+      baseDamage,
+      attacker.characterId,
+      target.characterId,
+      projectile.objectType
+    );
+    const fx = getHitFxFlags(attacker.characterId, target.characterId, projectile.objectType);
+
     target.hp = Math.max(0, target.hp - damage);
 
     const speed = Math.sqrt(
@@ -212,7 +270,7 @@ export class GameRoom {
       z: (projectile.velocity.z / (speed || 1)) * GAME_CONFIG.KNOCKBACK_MULTIPLIER * projectile.mass,
     };
 
-    this.onHit(this, targetId, damage, knockback);
+    this.onHit(this, targetId, damage, knockback, fx);
 
     if (target.hp <= 0) {
       target.isAlive = false;

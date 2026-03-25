@@ -25,6 +25,8 @@ export function GameView() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; nick: string; text: string }>>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const hitVisual = useGameStore((s) => s.hitVisual);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
 
   useEffect(() => {
     const sock = getSocket();
@@ -42,6 +44,15 @@ export function GameView() {
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (!leaveConfirmOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLeaveConfirmOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [leaveConfirmOpen]);
 
   const sendChat = useCallback(() => {
     const text = chatInput.trim();
@@ -63,16 +74,37 @@ export function GameView() {
     characters.find((c) => c.id === charId)?.color || '#4a90d9';
 
   const handleRestart = () => getSocket().emit('game:restart');
-  const handleLeave = () => getSocket().emit('room:leave');
+
+  const emitLeaveRoom = useCallback(() => {
+    getSocket().emit('room:leave');
+    setLeaveConfirmOpen(false);
+  }, []);
+
+  /** 게임 종료 후 결과 화면에서 로비로 */
+  const handleLeaveAfterGame = useCallback(() => {
+    getSocket().emit('room:leave');
+  }, []);
 
   const getWinnerName = () => {
     if (!winner?.winnerId || !winner.players) return 'Nobody';
     return winner.players[winner.winnerId]?.nickname || 'Unknown';
   };
 
+  const canvasShakeClass =
+    hitVisual?.kind === 'critical'
+      ? 'game-canvas--shake-critical'
+      : hitVisual?.kind === 'rank'
+        ? 'game-canvas--shake-rank'
+        : '';
+
   return (
     <div className="game-container">
-      <div className="game-canvas">
+      {hitVisual?.kind === 'critical' && (
+        <div className="hit-fx-critical-banner" aria-hidden>
+          CRITICAL!
+        </div>
+      )}
+      <div className={`game-canvas ${canvasShakeClass}`.trim()}>
         <Canvas
           shadows
           camera={{ position: [0, 12, 16], fov: 50 }}
@@ -111,6 +143,25 @@ export function GameView() {
           <div className="turn-indicator">
             {isMyTurn ? 'Your Turn! WASD to move, drag to throw' : `${players.find(p => p.id === currentRoom.currentTurnPlayer)?.nickname || '...'}'s Turn`}
             <span className="timer">{currentRoom.turnTimeLeft}s</span>
+            <button
+              type="button"
+              className="btn-leave-room"
+              onClick={() => setLeaveConfirmOpen(true)}
+            >
+              방 나가기
+            </button>
+          </div>
+        )}
+
+        {currentRoom.phase === 'waiting' && (
+          <div className="turn-indicator turn-indicator--waiting">
+            <button
+              type="button"
+              className="btn-leave-room"
+              onClick={() => setLeaveConfirmOpen(true)}
+            >
+              방 나가기
+            </button>
           </div>
         )}
 
@@ -179,6 +230,37 @@ export function GameView() {
         </div>
       </div>
 
+      {leaveConfirmOpen && (
+        <div
+          className="leave-confirm-backdrop"
+          role="presentation"
+          onClick={() => setLeaveConfirmOpen(false)}
+        >
+          <div
+            className="leave-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="leave-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="leave-confirm-title">방 나가기</h3>
+            <p className="leave-confirm-text">
+              {currentRoom.phase === 'playing'
+                ? '정말 나가시겠습니까? 나가면 지는 거예요.'
+                : '정말 방을 나가시겠습니까?'}
+            </p>
+            <div className="leave-confirm-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setLeaveConfirmOpen(false)}>
+                취소
+              </button>
+              <button type="button" className="btn btn-primary leave-confirm-ok" onClick={emitLeaveRoom}>
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Winner overlay */}
       {winner && (
         <div className="winner-overlay">
@@ -190,7 +272,7 @@ export function GameView() {
                 : 'Draw!'}
             </p>
             <div className="btns">
-              <button className="btn btn-secondary" onClick={handleLeave}>
+              <button className="btn btn-secondary" onClick={handleLeaveAfterGame}>
                 Leave
               </button>
               <button className="btn btn-primary" onClick={handleRestart}>

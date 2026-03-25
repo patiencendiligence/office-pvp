@@ -66,6 +66,10 @@ interface GameStore {
 
   chatTab: 'global' | 'room';
   setChatTab: (tab: 'global' | 'room') => void;
+
+  /** 일시적 타격 연출 (CRITICAL / 직급 유효 타격) */
+  hitVisual: null | { kind: 'critical' | 'rank' };
+  setHitVisual: (v: null | { kind: 'critical' | 'rank' }) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -140,4 +144,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   chatTab: 'global',
   setChatTab: (tab) => set({ chatTab: tab }),
+
+  hitVisual: null,
+  setHitVisual: (v) => set({ hitVisual: v }),
 }));

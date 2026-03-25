@@ -6,6 +6,7 @@ import cors from 'cors';
 import { Server, Socket } from 'socket.io';
 import { GameRoom } from './GameRoom';
 import { ChatMessage, Vec3, MAP_CONFIGS, THROWABLE_OBJECTS, CHARACTERS, GAME_CONFIG } from './types';
+import { computeBaseProjectileDamage } from './combat';
 
 const app = express();
 app.use(cors());
@@ -54,8 +55,8 @@ function createRoom(name: string, mapId: string): GameRoom {
         players: Object.fromEntries(r.state.players),
       });
     },
-    onHit: (r, targetId, damage, knockback) => {
-      io.to(r.state.id).emit('game:hit', { targetId, damage, knockback });
+    onHit: (r, targetId, damage, knockback, fx) => {
+      io.to(r.state.id).emit('game:hit', { targetId, damage, knockback, ...fx });
     },
     onBotThrow: (r, projectile) => {
       io.to(r.state.id).emit('game:projectile', projectile);
@@ -109,9 +110,13 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('player:setCharacter', (charId: string) => {
     const valid = CHARACTERS.find(c => c.id === charId);
-    if (valid) {
-      playerCharacters.set(socket.id, charId);
-      socket.emit('player:characterSet', charId);
+    if (!valid) return;
+    playerCharacters.set(socket.id, charId);
+    socket.emit('player:characterSet', charId);
+
+    const roomId = playerRooms.get(socket.id);
+    if (roomId) {
+      rooms.get(roomId)?.setPlayerCharacter(socket.id, charId);
     }
   });
 
@@ -225,15 +230,18 @@ io.on('connection', (socket: Socket) => {
     const room = rooms.get(roomId);
     if (!room) return;
 
+    const attacker = room.state.players.get(socket.id);
+    if (!attacker) return;
+
     const obj = THROWABLE_OBJECTS.find(o => o.id === data.objectType) || THROWABLE_OBJECTS[0];
-    const speed = Math.sqrt(data.velocity.x ** 2 + data.velocity.y ** 2 + data.velocity.z ** 2);
+    const baseDamage = computeBaseProjectileDamage(attacker.characterId, data.objectType, data.velocity);
     room.handleHit(data.targetId, {
       playerId: socket.id,
       objectType: data.objectType,
       position: { x: 0, y: 0, z: 0 },
       velocity: data.velocity,
       mass: obj.mass,
-      damage: Math.round(10 * obj.damageMultiplier * (Math.min(speed, GAME_CONFIG.MAX_THROW_POWER) / GAME_CONFIG.MAX_THROW_POWER)),
+      damage: baseDamage,
     });
   });
 

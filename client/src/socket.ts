@@ -67,7 +67,7 @@ function setupListeners(sock: Socket) {
   });
 
   sock.on('room:left', () => {
-    set({ currentRoom: null, roomChat: [], screen: 'lobby' });
+    set({ currentRoom: null, roomChat: [], screen: 'lobby', winner: null });
   });
 
   sock.on('game:started', (room) => {
