@@ -11,6 +11,11 @@ const app = express();
 app.use(cors());
 const server = http.createServer(app);
 
+// Render health checks need 2xx before static files exist; keep independent of client/dist.
+app.get('/health', (_req, res) => {
+  res.status(200).type('text/plain').send('ok');
+});
+
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
 });
@@ -314,6 +319,9 @@ io.on('connection', (socket: Socket) => {
 
 // Production: same host serves Vite build + Socket.IO (Render / single URL).
 const clientDist = path.join(__dirname, '../../client/dist');
+if (!fs.existsSync(clientDist)) {
+  console.warn(`[office-pvp] client dist not found at ${clientDist} — run client build before server.`);
+}
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
@@ -327,7 +335,8 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Office PvP server running on port ${PORT}`);
+const PORT = Number(process.env.PORT) || 3001;
+// Render and most PaaS require listening on all interfaces, not only localhost.
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Office PvP server listening on 0.0.0.0:${PORT}`);
 });

@@ -6,6 +6,7 @@ services:
     # Client must be built first; server serves ../client/dist (see server/src/index.ts).
     buildCommand: cd ../client && npm install && npm run build && cd ../server && npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
